@@ -19,10 +19,6 @@ This repository is intended to be the source of truth for curated domain skills 
 - `phdwin-querying`: safe query patterns and schema navigation for PhdWIN databases.
 - `petroleum-economics-review`: repeatable review workflows for petroleum engineering economics.
 
-## Planning
-
-See `docs/planning.md` for the current feature backlog, distribution targets, and open questions.
-
 ## Safety Rules
 
 Do not commit secrets, passwords, private keys, raw production exports, DSNs, connection strings, license keys, or customer confidential data. Use sanitized schemas, synthetic examples, and environment variable placeholders.
