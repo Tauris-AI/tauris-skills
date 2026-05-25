@@ -1,0 +1,34 @@
+# Secrets and local configuration
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.kdbx
+secrets/
+private/
+
+# Raw database exports and local data
+*.bak
+*.bacpac
+*.dacpac
+*.mdb
+*.accdb
+*.sqlite
+*.sqlite3
+*.db
+exports/
+data/
+tmp/
+
+# Python/runtime noise
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/

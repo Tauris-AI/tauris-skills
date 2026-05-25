@@ -1,0 +1,22 @@
+{
+  "name": "tauris-petroleum",
+  "version": "0.1.0",
+  "description": "Tauris petroleum engineering skills for ARIES, PhdWIN, and economics review workflows.",
+  "author": {
+    "name": "Tauris"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tauris Petroleum",
+    "shortDescription": "Petroleum engineering workflow skills.",
+    "longDescription": "Adds curated Tauris petroleum engineering skills for ARIES, PhdWIN, and economics review workflows.",
+    "developerName": "Tauris",
+    "category": "Productivity",
+    "capabilities": [
+      "ARIES workflow guidance",
+      "PhdWIN query drafting",
+      "Petroleum economics review"
+    ],
+    "defaultPrompt": "Help me with a Tauris petroleum engineering workflow."
+  }
+}
