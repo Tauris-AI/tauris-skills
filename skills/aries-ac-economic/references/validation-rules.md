@@ -2,17 +2,32 @@
 
 ## Current Baseline
 
-The initial validator only checks generic file hygiene. Field-level validation should be added after the line format is curated.
+The canonical validator is the `tauris-aries` CLI. It validates the structured JSON document emitted by `tauris-aries decode` and rejects edits that would silently drop unsupported raw source rows.
+
+```bash
+tauris-aries validate econ.json
+tauris-aries roundtrip --sqlite ARIESGeneric.sqlite
+```
+
+The older `scripts/validate_ac_economic.py` helper is only a legacy hygiene check and should not be treated as the canonical parser.
+
+## Implemented Checks
+
+- Required document format.
+- Required row metadata such as property number, section, sequence, keyword, and expression.
+- Allowed `AC_ECONOMIC` section numbers.
+- Duplicate row sequence detection per property, section, and qualifier.
+- Unsupported row passthrough protection.
+- Round-trip row count and normalized row comparison.
 
 ## Planned Checks
 
-- Required field count.
-- Field type validation.
 - Date parsing.
 - Numeric precision and sign conventions.
 - Allowed code values.
-- Duplicate or conflicting line detection.
-- Round-trip parse and render checks.
+- Section-specific unit validation.
+- Unknown stream lookup validation when lookup tables are available.
+- Broader semantic parity against the Tauris importer.
 
 ## Mutation Review Gate
 
