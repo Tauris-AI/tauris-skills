@@ -20,6 +20,20 @@ Use agent-specific wrappers from `adapters/` when packaging this skill for other
 
 These files should remain thin. The core domain logic belongs in this `SKILL.md`, `references/`, and `scripts/`.
 
+## Execution Boundary
+
+This skill provides PhdWIN v2 domain knowledge, schema references, query patterns, and extraction guidance.
+
+It does **not** directly query `.phd`, `.mod`, `.tps`, or `.phz` files unless the runtime environment has access to:
+
+- Windows
+- Clarion / TopSpeed ODBC driver
+- `pyodbc` or another ODBC client
+- the extracted PhdWIN dataset folder
+- permission to execute local scripts
+
+Cloud-hosted AI environments usually cannot access the user's local ODBC driver. In those environments, the skill should generate scripts, SQL, API wrappers, or troubleshooting steps rather than claiming it can query the dataset directly.
+
 ## Workflow
 
 1. Determine the user's stage:
@@ -27,41 +41,103 @@ These files should remain thin. The core domain logic belongs in this `SKILL.md`
    - extracted-table inspection
    - querying and data lookup
    - reusable select-query design
-2. If the user has not extracted data yet, start with extraction prerequisites:
+2. Determine the source type first:
+   - native PhdWIN input: `.phz`, `.phd`, `.mod`
+   - extracted SQLite database: `.sqlite`, `.db`
+3. If the source type is native PhdWIN, start with extraction prerequisites:
    - explain that PhdWIN v2 uses Clarion TopSpeed (`.tps`) storage
    - explain that a Clarion/TopSpeed ODBC driver is required for direct extraction through the Tauris tooling
    - if the driver is missing, instruct the user to contact Tauris AI or SoftVelocity
    - explain that the target outcome is a set of extracted SQLite tables named the way `Tauris.PhdWin` stages them
-3. Restate the business question in PhdWIN terms: project, case/well, forecast, owner, group, filter, sort, history, investment, or model variable.
-4. Decide the access path:
+4. If the source type is extracted SQLite:
+   - skip the Clarion driver prerequisite
+   - confirm that the SQLite file exists and opens
+   - confirm that the expected extracted tables are present
+   - keep the guidance SQLite-oriented
+5. Restate the business question in PhdWIN terms: project, case/well, forecast, owner, group, filter, sort, history, investment, or model variable.
+6. Decide the access path:
    - use existing REST endpoints first when the repo already exposes the needed data
    - use `/api/schema` and `/api/schematable` to discover tables and columns
    - use `/api/query` only for read-only SQL that is not already covered by a typed endpoint
-5. Identify the minimum required tables and anchor keys before drafting SQL.
-6. Explain the extracted table layout in business terms:
+7. Identify the minimum required tables and anchor keys before drafting SQL.
+8. Explain the extracted table layout in business terms:
    - what table contains the requested inputs
    - which keys join it to surrounding tables
    - whether it is a `PHD_*` or `MOD_*` source
-7. Default to read-only work. For exploratory SQL, prefer narrow projections, explicit filters, and small row counts.
-8. Resolve table names using the same placeholder rules as `Tauris.PhdWin`:
+9. Default to read-only work. For exploratory SQL, prefer narrow projections, explicit filters, and small row counts.
+10. Resolve table names using the same placeholder rules as `Tauris.PhdWin`:
    - `{{phd}}` resolves to the `.phd` file name.
    - `{{mod}}` resolves to the `.mod` file name.
    - Generated entity annotations such as `{{phd}}\&MAINLSE` are the canonical source of truth.
-9. Document dataset assumptions clearly:
+11. Document dataset assumptions clearly:
    - datasource path or import workspace
    - whether the source is unzipped `.phz`, Access, Excel, CSV, or extracted SQLite
    - any assumed joins or code mappings
    - any uncertainty around customer-specific customizations
-10. When the request comes from prior ARIES-conversion work, reuse that logic as read-only lookup logic:
+12. When the request comes from prior ARIES-conversion work, reuse that logic as read-only lookup logic:
    - identify which extracted PhdWIN or SQLite tables answer the question
    - explain the keys and fields required from those tables
    - keep the result as `SELECT`-style guidance or endpoint calls only
    - do not drift into export or mutation logic unless explicitly requested
-11. For mutation requests, do not draft direct writes until you have:
+13. For mutation requests, do not draft direct writes until you have:
    - a dry-run plan
    - exact target rows/tables
    - rollback or restore path
    - explicit approval
+
+## Expected Workflow
+
+When a user provides a `.phz` file:
+
+1. Treat `.phz` as a ZIP-style package when possible.
+2. Extract or inspect it.
+3. Locate the `.Phd` and optional `.MOD` files.
+4. Tell the user the dataset folder, not the file, is the ODBC target.
+5. Use the Clarion / TopSpeed ODBC driver locally.
+6. Run read-only schema discovery first.
+7. Generate safe SQL against known PhdWIN tables.
+8. Export results to CSV, SQLite, or JSON for downstream analysis.
+
+Preferred pipeline:
+
+```text
+.phz
+  -> extract .Phd / .MOD
+  -> Clarion TopSpeed ODBC
+  -> Python pyodbc runner
+  -> CSV / SQLite / API
+  -> AI analysis
+```
+
+## Codex Behavior
+
+When running inside Codex CLI or a local IDE agent, first determine whether the environment can actually execute the workflow.
+
+Check for:
+
+- Operating system
+- Python version
+- `pyodbc`
+- available ODBC drivers
+- dataset folder path
+- presence of `.Phd` / `.MOD`
+- whether the user is running in Windows or WSL
+
+If the user is in WSL but the ODBC driver is installed on Windows, do not assume Linux Python can use it. Prefer Windows Python, PowerShell, or a local Windows API bridge.
+
+Codex should not fabricate query results. If the driver or dataset is unavailable, produce a runnable script and explain what the user must run locally.
+
+## Recommended Local Runner
+
+The skill should help generate a local runner with this shape:
+
+- `extract_phz.py` - extracts `.phz` into a dataset folder
+- `list_odbc_drivers.py` - prints installed ODBC drivers
+- `smoke_test.py` - attempts read-only queries against core tables
+- `export_sqlite.py` - exports selected PhdWIN tables to SQLite
+- `api_server.py` - optional FastAPI wrapper exposing schema/query endpoints
+
+All generated code must default to read-only access.
 
 ## Extraction Guidance
 
@@ -74,6 +150,30 @@ These files should remain thin. The core domain logic belongs in this `SKILL.md`
   - confirm the server can enumerate tables
   - confirm the expected `PHD_*` and `MOD_*` surfaces are readable
 - Do not imply the driver is optional when the user is trying to extract directly from Clarion sources.
+
+## SQLite Guidance
+
+- If the user already has an extracted SQLite database, the Clarion driver is not needed for query work.
+- For SQLite-first work, validate:
+  - the SQLite file exists
+  - the database opens successfully
+  - the expected extracted tables are present
+  - the expected key columns are present
+- Keep SQLite guidance read-only unless the user explicitly asks for mutation.
+- Reuse the same table meaning and key logic as the native PhdWIN extraction path.
+
+## Safety and Data Handling
+
+PhdWIN files may contain confidential reserves, production, ownership, and economic data.
+
+Default behavior:
+
+- read-only queries only
+- no destructive SQL
+- no writes back to `.Phd`, `.MOD`, or `.tps`
+- avoid uploading customer datasets unless explicitly approved
+- prefer local extraction to CSV/SQLite for sharing
+- redact sensitive owner/entity names when creating examples
 
 ## Query Strategy
 

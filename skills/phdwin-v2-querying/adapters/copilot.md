@@ -33,3 +33,5 @@ Load these when relevant:
 - Prefer concrete table/key references over generic petroleum-economics explanations.
 - If code comments or docs are being generated, use the exact PhdWIN table names and preserve `FORCAST` spelling where applicable.
 - If the user is missing prerequisites, tell them before generating query logic.
+- Only treat the Clarion driver as a prerequisite for native `.phz`, `.phd`, or `.mod` inputs.
+- If the user already has SQLite output, move directly to table and query guidance.

@@ -47,6 +47,8 @@ Then load by task:
 ## Behavioral Rules
 
 - If the Clarion TopSpeed ODBC driver is missing, state that direct extraction requires it and direct the user to Tauris AI or SoftVelocity.
+- Apply that driver requirement only to native `.phz`, `.phd`, or `.mod` sources.
+- If the source is already SQLite, move directly to database-open, table, and key checks.
 - Do not invent unsupported mappings or fake SQL syntax for unknown tables.
 - Prefer existing REST endpoints over raw SQL where they already expose the required data.
 - Keep mutation guidance behind explicit review and approval.

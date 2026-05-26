@@ -11,6 +11,8 @@ This reference explains the prerequisites and expected outcome for extracting Ph
 - If the user does not have the driver, tell them to contact Tauris AI or SoftVelocity.
 - Do not imply the extraction path is fully supported without that driver.
 
+This driver requirement applies to native PhdWIN source access, not to already-extracted SQLite databases.
+
 ## Expected Source Layout
 
 The normal PhdWIN input is an uncompressed dataset folder containing:
@@ -35,6 +37,16 @@ The extraction is successful when the user can:
 4. read the important PhdWIN input tables
 5. reason about the extracted table names using the Tauris naming conventions
 
+## SQLite Branch
+
+If the user already has extracted SQLite output:
+
+- skip the Clarion driver prerequisite
+- verify the SQLite file exists
+- verify it opens
+- verify the expected extracted tables are present
+- continue with read-only lookup guidance
+
 ## Expected Extracted Table Families
 
 - `PHD_*` for project/case/history/ownership/filter/sort/forecast style tables
@@ -55,6 +67,7 @@ These families should be treated as the canonical extracted surfaces for downstr
 
 If the user says they cannot open the dataset:
 
-- ask whether they have the Clarion TopSpeed ODBC driver
-- if not, tell them they need it and should contact Tauris AI or SoftVelocity
-- if yes, focus on datasource path, `.phd`/`.mod` presence, and schema discovery endpoints
+- if the source is `.phz`, `.phd`, or `.mod`, ask whether they have the Clarion TopSpeed ODBC driver
+- if the native-source driver is missing, tell them they need it and should contact Tauris AI or SoftVelocity
+- if the source is SQLite, skip the driver question and focus on opening the database and checking tables
+- if the native-source driver exists, focus on datasource path, `.phd`/`.mod` presence, and schema discovery endpoints
