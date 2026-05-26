@@ -10,6 +10,16 @@ Use this skill when a task involves `Tauris.PhdWin`, PhdWIN v2 Clarion/Topspeed 
 The current verified implementation source is the local repo at `/mnt/c/Dev/Tauris.PhdWin`.
 The user-provided document set under `/mnt/c/Dev/Tauris.PhdWin/docs/reference-inputs` must be treated as a primary reference library for PhdWIN v2 behavior, table meaning, conversion context, and business interpretation.
 
+## Adapters
+
+Use agent-specific wrappers from `adapters/` when packaging this skill for other AI systems:
+
+- `adapters/claude.md`
+- `adapters/codex.md`
+- `adapters/copilot.md`
+
+These files should remain thin. The core domain logic belongs in this `SKILL.md`, `references/`, and `scripts/`.
+
 ## Workflow
 
 1. Determine the user's stage:
