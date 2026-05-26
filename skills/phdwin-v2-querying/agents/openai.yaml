@@ -1,0 +1,4 @@
+interface:
+  display_name: "PhdWIN V2 Querying"
+  short_description: "Guide PhdWIN v2 extraction, tables, and queries"
+  default_prompt: "Use $phdwin-v2-querying to explain PhdWIN v2 extraction requirements, extracted tables, keys, and safe query paths."
