@@ -11,7 +11,7 @@ Copilot should use the skill to help with:
 - extracted table interpretation
 - key and join explanation
 - safe read-only query drafting
-- PhdWIN-to-ARIES preparation tasks
+- read-only lookup tasks derived from prior conversion work
 
 ## Preferred Reference Order
 
@@ -24,7 +24,7 @@ Load these when relevant:
 - `references/workflow/extraction-guide.md`
 - `references/workflow/api-endpoints.md`
 - `references/schema/generated-entity-map.md`
-- `references/conversion/conversion-input-map.md`
+- `references/lookups/select-query-map.md`
 - `references/source-library/reference-inputs-index.md`
 
 ## Copilot Guidance

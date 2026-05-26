@@ -11,7 +11,7 @@ Claude should use the core skill to help users:
 - interpret extracted `PHD_*` and `MOD_*` tables
 - explain key fields and join logic
 - draft safe read-only query paths
-- prepare PhdWIN inputs for Tauris conversion workflows into ARIES
+- turn prior ARIES-conversion lookup knowledge into standalone `SELECT` guidance
 
 ## Load Order
 
@@ -20,7 +20,7 @@ Start with:
 1. `SKILL.md`
 2. `references/workflow/extraction-guide.md`
 3. `references/schema/schema-notes.md`
-4. `references/conversion/conversion-input-map.md`
+4. `references/lookups/select-query-map.md`
 
 Load these as needed:
 
@@ -38,14 +38,14 @@ Load these as needed:
   - extraction prerequisites
   - extracted-table interpretation
   - query drafting
-  - conversion preparation
+  - reusable read-only lookup logic
 - If the user lacks the Clarion TopSpeed ODBC driver, tell them they need it and should contact Tauris AI or SoftVelocity.
 - Do not invent undocumented table meanings or joins.
 
 ## Suggested Project Instruction
 
 ```text
-Use the PhdWIN v2 querying skill as the source of truth for extraction prerequisites, Clarion driver guidance, extracted table layout, key logic, safe query drafting, and PhdWIN-to-ARIES preparation. Prefer repo-verified schema notes and generated entity mappings before making assumptions. When the answer depends mainly on the external reference library, say so explicitly.
+Use the PhdWIN v2 querying skill as the source of truth for extraction prerequisites, Clarion driver guidance, extracted SQLite table layout, key logic, and safe read-only query drafting. Reuse prior conversion knowledge only as a source for lookup logic, not export logic. Prefer repo-verified schema notes and generated entity mappings before making assumptions. When the answer depends mainly on the external reference library, say so explicitly.
 ```
 
 ## Suggested Test Prompts
@@ -59,5 +59,5 @@ Which extracted tables hold case identity, ownership, forecast inputs, and produ
 ```
 
 ```text
-For one LSE_ID, what PhdWIN tables should I inspect before ARIES conversion?
+For one LSE_ID, what tables should I query to find the initial oil decline rate?
 ```

@@ -1,14 +1,14 @@
 ---
 name: phdwin-v2-querying
-description: Use for PhdWIN v2 extraction prerequisites, Clarion driver guidance, extracted table mapping, key/join explanation, safe querying of extracted PhdWIN inputs, and preparing data for Tauris conversion workflows into ARIES.
+description: Use for PhdWIN v2 extraction prerequisites, Clarion driver guidance, SQLite extracted table mapping, key/join explanation, and safe read-only querying of extracted PhdWIN inputs using Tauris lookup logic.
 ---
 
 # PhdWIN V2 Querying
 
-Use this skill when a task involves `Tauris.PhdWin`, PhdWIN v2 Clarion/Topspeed datasets, extraction prerequisites, extracted-table interpretation, schema discovery, query drafting, or mapping petroleum-engineering questions onto the PhdWIN data model.
+Use this skill when a task involves `Tauris.PhdWin`, PhdWIN v2 Clarion/Topspeed datasets, extraction prerequisites, SQLite extracted-table interpretation, schema discovery, read-only query drafting, or mapping petroleum-engineering questions onto the PhdWIN data model.
 
 The current verified implementation source is the local repo at `/mnt/c/Dev/Tauris.PhdWin`.
-The user-provided document set under `/mnt/c/Dev/Tauris.PhdWin/docs/reference-inputs` must be treated as a primary reference library for PhdWIN v2 behavior, table meaning, conversion context, and business interpretation.
+The user-provided document set under `/mnt/c/Dev/Tauris.PhdWin/docs/reference-inputs` must be treated as a primary reference library for PhdWIN v2 behavior, table meaning, query context, and business interpretation.
 
 ## Adapters
 
@@ -26,12 +26,12 @@ These files should remain thin. The core domain logic belongs in this `SKILL.md`
    - extraction setup
    - extracted-table inspection
    - querying and data lookup
-   - ARIES conversion preparation
+   - reusable select-query design
 2. If the user has not extracted data yet, start with extraction prerequisites:
    - explain that PhdWIN v2 uses Clarion TopSpeed (`.tps`) storage
    - explain that a Clarion/TopSpeed ODBC driver is required for direct extraction through the Tauris tooling
    - if the driver is missing, instruct the user to contact Tauris AI or SoftVelocity
-   - explain that the target outcome is a set of extracted tables named the way `Tauris.PhdWin` stages them
+   - explain that the target outcome is a set of extracted SQLite tables named the way `Tauris.PhdWin` stages them
 3. Restate the business question in PhdWIN terms: project, case/well, forecast, owner, group, filter, sort, history, investment, or model variable.
 4. Decide the access path:
    - use existing REST endpoints first when the repo already exposes the needed data
@@ -49,13 +49,14 @@ These files should remain thin. The core domain logic belongs in this `SKILL.md`
    - Generated entity annotations such as `{{phd}}\&MAINLSE` are the canonical source of truth.
 9. Document dataset assumptions clearly:
    - datasource path or import workspace
-   - whether the source is unzipped `.phz`, Access, Excel, or CSV
+   - whether the source is unzipped `.phz`, Access, Excel, CSV, or extracted SQLite
    - any assumed joins or code mappings
    - any uncertainty around customer-specific customizations
-10. When the request is conversion-oriented, connect the PhdWIN tables back to Tauris conversion logic:
-   - identify which extracted tables are inputs to the conversion
+10. When the request comes from prior ARIES-conversion work, reuse that logic as read-only lookup logic:
+   - identify which extracted PhdWIN or SQLite tables answer the question
    - explain the keys and fields required from those tables
-   - call out any gaps or assumptions that would block a reliable ARIES export
+   - keep the result as `SELECT`-style guidance or endpoint calls only
+   - do not drift into export or mutation logic unless explicitly requested
 11. For mutation requests, do not draft direct writes until you have:
    - a dry-run plan
    - exact target rows/tables
@@ -66,7 +67,7 @@ These files should remain thin. The core domain logic belongs in this `SKILL.md`
 
 - PhdWIN v2 datasets are Clarion TopSpeed based and require the Clarion/TopSpeed ODBC driver for the direct extraction path used by `Tauris.PhdWin`.
 - If the user does not have the driver, tell them they need to obtain it from Tauris AI or SoftVelocity.
-- The extraction goal is not just to open the `.phz`; it is to produce extracted tables with stable naming that the Tauris query and conversion workflows understand.
+- The extraction goal is not just to open the `.phz`; it is to produce extracted SQLite tables with stable naming that the Tauris query workflows understand.
 - Keep extraction guidance practical:
   - verify the driver is installed
   - identify the uncompressed dataset folder containing `.phd` and `.mod`
@@ -84,12 +85,24 @@ These files should remain thin. The core domain logic belongs in this `SKILL.md`
   - forecast formulas and segments
   - ownership summaries
 - Use schema inspection endpoints before guessing column names.
-- When using raw SQL, mirror the repo's own naming conventions and keep the query portable across sample datasets.
+- When using raw SQL, mirror the repo's own naming conventions and keep the query portable across sample datasets and extracted SQLite tables.
+- Prefer answering with read-only `SELECT` logic or equivalent endpoint calls.
+
+## Primary Use Cases
+
+- list projects or cases
+- identify where ownership data lives
+- find forecast inputs for a given well
+- find initial oil decline rate for a given well and stream
+- inspect saved filters and sorts
+- explain which key fields join the relevant tables
+- translate prior ARIES-conversion extraction logic into standalone read-only lookups
 
 ## PhdWIN-Specific Rules
 
 - The `datasource` request header is required by the server. It points at the uncompressed dataset folder or other supported source.
 - A directory datasource is treated as PhdWIN/Topspeed by default. The server looks for one `.phd` file and optionally one `.mod` file.
+- If the data has already been extracted into SQLite, use the same table names and key logic but keep guidance SQLite-oriented rather than ODBC-oriented.
 - Clarion date values are stored as integers and often exposed in the entities with companion `*_dttm` not-mapped properties. In raw SQL, treat the base integer column as the source of truth unless the API already materializes the converted date.
 - Many PhdWIN tables use one-based array columns such as `segmentdate$1` or `prod1$12`. The generated entities flatten these into .NET arrays for API use, but raw SQL must use the literal column names with `$n`.
 - `FORCAST` is intentionally misspelled in the source data and in the generated entity/table annotation. Do not "correct" it to `FORECAST`.
@@ -104,7 +117,7 @@ Depending on the request, produce one of these:
 - a table map showing where the requested data lives
 - a key/join explanation for the relevant tables
 - a safe query or endpoint call
-- a conversion-readiness checklist for PhdWIN-to-ARIES inputs
+- a read-only lookup plan expressed as `SELECT` logic
 
 ## Read These References As Needed
 
@@ -117,8 +130,8 @@ Use the references directory by subfolder:
 - `references/schema/`
   - `schema-notes.md`: verified schema landmarks, key tables, identifiers, and quirks
   - `generated-entity-map.md`: generated route-to-entity-to-table map built from the current repo
-- `references/conversion/`
-  - `conversion-input-map.md`: PhdWIN tables that matter for Tauris conversion and ARIES preparation
+- `references/lookups/`
+  - `select-query-map.md`: PhdWIN tables and fields for common read-only lookup questions
 - `references/source-library/`
   - `reference-inputs-index.md`: guide to the user-provided documents in `Tauris.PhdWin/docs/reference-inputs`
 
@@ -132,7 +145,7 @@ Use it selectively:
 
 - extraction and table inventory questions: start with the table/datamodel docs
 - forecasting and decline questions: use the ARPS and decline documents
-- PhdWIN-to-ARIES mapping questions: use the Tauris notes and revision docs
+- lookup questions derived from prior ARIES-conversion work: use the Tauris notes and revision docs only as mapping aids, then keep the final answer read-only
 - output/export questions: use the PHDWin output definitions and sample output files
 
 Do not restate undocumented behavior as fact unless it is supported by either:
