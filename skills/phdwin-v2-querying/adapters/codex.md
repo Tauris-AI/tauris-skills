@@ -8,7 +8,7 @@ Codex should use the core skill to:
 
 - walk users through PhdWIN v2 extraction prerequisites
 - confirm Clarion TopSpeed driver requirements
-- explain the extracted SQLite table layout used by Tauris workflows
+- explain the extracted SQLite table layout used by the local workflow
 - map business questions onto `PHD_*` and `MOD_*` tables
 - explain keys and join logic
 - draft safe read-only query paths
@@ -43,10 +43,11 @@ Then load by task:
 - When the user is pre-extraction, prioritize driver/setup guidance over query examples.
 - When the user already has extracted tables, prioritize table purpose, keys, joins, and read-safe access paths.
 - When the task references older conversion work, reuse only the table/key lookup logic and keep the result read-only.
+- Prefer scriptable low-level steps over an interactive wizard until the underlying runner is proven.
 
 ## Behavioral Rules
 
-- If the Clarion TopSpeed ODBC driver is missing, state that direct extraction requires it and direct the user to Tauris AI or SoftVelocity.
+- If the Clarion TopSpeed ODBC driver is missing, state that direct extraction requires it and that the user must install it before native extraction can proceed.
 - Apply that driver requirement only to native `.phz`, `.phd`, or `.mod` sources.
 - If the source is already SQLite, move directly to database-open, table, and key checks.
 - Do not invent unsupported mappings or fake SQL syntax for unknown tables.

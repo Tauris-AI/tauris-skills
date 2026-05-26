@@ -1,6 +1,6 @@
 # Generated Entity Map
 
-Built from `/mnt/c/Dev/Tauris.PhdWin/src/Tauris.Odbc.Common.Objects/GeneratedEntities`.
+Built from the local PhdWIN implementation generated-entity source folder.
 
 | Entity | Route | Table Annotation | Source File |
 | --- | --- | --- | --- |

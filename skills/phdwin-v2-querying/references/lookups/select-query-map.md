@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This reference turns prior Tauris extraction and conversion knowledge into read-only lookup guidance.
+This reference turns prior extraction and conversion knowledge into read-only lookup guidance.
 
 The goal is to answer questions such as:
 
@@ -134,7 +134,7 @@ ORDER BY YEAR
 
 If the PhdWIN data has already been extracted into SQLite:
 
-- keep the same logical table names where Tauris preserved them
+- keep the same logical table names where the local implementation preserved them
 - keep the same key logic
 - translate the answer into SQLite-safe `SELECT` statements
 - do not introduce PostgreSQL-specific syntax

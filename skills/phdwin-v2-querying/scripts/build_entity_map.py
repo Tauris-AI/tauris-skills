@@ -3,7 +3,7 @@
 Build a markdown map of PhdWIN generated entities, routes, and table annotations.
 
 Usage:
-    python3 build_entity_map.py /path/to/Tauris.PhdWin
+    python3 build_entity_map.py /path/to/phdwin-implementation
 """
 
 from __future__ import annotations
@@ -20,13 +20,14 @@ CLASS_RE = re.compile(r"public class (\w+)")
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Usage: python3 build_entity_map.py /path/to/Tauris.PhdWin", file=sys.stderr)
+        print("Usage: python3 build_entity_map.py /path/to/phdwin-implementation", file=sys.stderr)
         return 1
 
     repo_root = Path(sys.argv[1]).resolve()
-    entity_dir = repo_root / "src" / "Tauris.Odbc.Common.Objects" / "GeneratedEntities"
-    if not entity_dir.is_dir():
-        print(f"GeneratedEntities directory not found: {entity_dir}", file=sys.stderr)
+    candidates = sorted(repo_root.glob("src/*/GeneratedEntities"))
+    entity_dir = candidates[0] if candidates else None
+    if entity_dir is None or not entity_dir.is_dir():
+        print("GeneratedEntities directory not found under src/*/GeneratedEntities", file=sys.stderr)
         return 1
 
     rows: list[tuple[str, str, str, str]] = []
@@ -48,7 +49,7 @@ def main() -> int:
 
     print("# Generated Entity Map")
     print()
-    print("Built from `/mnt/c/Dev/Tauris.PhdWin/src/Tauris.Odbc.Common.Objects/GeneratedEntities`.")
+    print("Built from the local PhdWIN implementation generated-entity source folder.")
     print()
     print("| Entity | Route | Table Annotation | Source File |")
     print("| --- | --- | --- | --- |")

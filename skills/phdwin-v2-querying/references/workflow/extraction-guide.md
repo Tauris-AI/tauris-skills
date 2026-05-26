@@ -2,13 +2,13 @@
 
 ## Purpose
 
-This reference explains the prerequisites and expected outcome for extracting PhdWIN v2 data into the table surfaces used by Tauris tooling.
+This reference explains the prerequisites and expected outcome for extracting PhdWIN v2 data into the table surfaces used by the local extraction tooling.
 
 ## Driver Requirement
 
 - PhdWIN v2 uses Clarion TopSpeed storage.
-- Direct extraction through `Tauris.PhdWin` requires the Clarion TopSpeed ODBC driver.
-- If the user does not have the driver, tell them to contact Tauris AI or SoftVelocity.
+- Direct extraction through the supported local implementation requires the Clarion TopSpeed ODBC driver.
+- If the user does not have the driver, tell them native extraction cannot proceed until they obtain and install it.
 - Do not imply the extraction path is fully supported without that driver.
 
 This driver requirement applies to native PhdWIN source access, not to already-extracted SQLite databases.
@@ -20,7 +20,7 @@ The normal PhdWIN input is an uncompressed dataset folder containing:
 - one `.phd` file
 - optionally one `.mod` file
 
-`Tauris.PhdWin` uses the datasource folder to detect those files and substitute:
+The local implementation uses the datasource folder to detect those files and substitute:
 
 - `{{phd}}`
 - `{{mod}}`
@@ -35,7 +35,7 @@ The extraction is successful when the user can:
 2. enumerate available tables with `/api/schema`
 3. inspect individual table schemas with `/api/schematable`
 4. read the important PhdWIN input tables
-5. reason about the extracted table names using the Tauris naming conventions
+5. reason about the extracted table names using the local naming conventions
 
 ## SQLite Branch
 
@@ -68,6 +68,6 @@ These families should be treated as the canonical extracted surfaces for downstr
 If the user says they cannot open the dataset:
 
 - if the source is `.phz`, `.phd`, or `.mod`, ask whether they have the Clarion TopSpeed ODBC driver
-- if the native-source driver is missing, tell them they need it and should contact Tauris AI or SoftVelocity
+- if the native-source driver is missing, tell them native extraction cannot proceed until they obtain and install it
 - if the source is SQLite, skip the driver question and focus on opening the database and checking tables
 - if the native-source driver exists, focus on datasource path, `.phd`/`.mod` presence, and schema discovery endpoints

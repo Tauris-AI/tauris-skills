@@ -39,7 +39,7 @@ Load these as needed:
   - extracted-table interpretation
   - query drafting
   - reusable read-only lookup logic
-- If the user lacks the Clarion TopSpeed ODBC driver, tell them they need it and should contact Tauris AI or SoftVelocity.
+- If the user lacks the Clarion TopSpeed ODBC driver, tell them native extraction cannot proceed until they obtain and install it.
 - Ask about the driver only when the source is native `.phz`, `.phd`, or `.mod`.
 - If the source is already SQLite, skip the driver prerequisite and move to schema/table checks.
 - Do not invent undocumented table meanings or joins.

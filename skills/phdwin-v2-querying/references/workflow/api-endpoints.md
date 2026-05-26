@@ -1,6 +1,6 @@
 # PhdWIN API Endpoints
 
-This reference captures the verified endpoint patterns exposed by the local `Tauris.PhdWin` repo.
+This reference captures the verified endpoint patterns exposed by the local PhdWIN implementation.
 
 ## Required Headers
 

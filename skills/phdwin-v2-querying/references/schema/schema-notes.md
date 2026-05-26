@@ -1,6 +1,6 @@
 # PhdWIN Schema Notes
 
-This reference is grounded in the checked-in generated entities and server code under `/mnt/c/Dev/Tauris.PhdWin`.
+This reference is grounded in the checked-in generated entities and server code in the local PhdWIN implementation.
 
 ## Core Naming Rules
 
@@ -136,4 +136,4 @@ Use these when the question is about business meaning rather than literal table 
 
 - `README.md` documents datasource handling, raw query usage, and entity/table annotation conventions.
 - `docs/PHDWIN_DATA_MAP.md` provides a broader logical crosswalk between PhdWIN mnemonics and logical tables.
-- `src/Tauris.Odbc.Common.Objects/GeneratedEntities/*.cs` is the best checked-in source of table names, routes, and column shapes.
+- `src/*/GeneratedEntities/*.cs` is the best checked-in source of table names, routes, and column shapes.

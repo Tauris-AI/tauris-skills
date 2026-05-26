@@ -1,8 +1,6 @@
 # Reference Inputs Index
 
-This index points the skill at the user-provided reference library under:
-
-- `/mnt/c/Dev/Tauris.PhdWin/docs/reference-inputs`
+This index points the skill at the user-provided reference library under the local `docs/reference-inputs` folder.
 
 Use these files as the domain documentation set of record when the checked-in code alone is not enough.
 
@@ -50,9 +48,9 @@ Use these files as the domain documentation set of record when the checked-in co
 
 - `2023.05.15 - PHDWin to Aries  Revisions_v2.docx`
   - use for conversion revisions and open mapping details
-- `Tauris Notes - PHDWin vs Aries.docx`
+- local PHDWin vs Aries notes
   - use for comparison notes and mapping logic
-- `Tauris Notes - Aries to PHDWin.docx`
+- local Aries to PHDWin notes
   - use for reverse-direction mapping context
 - `PHD Aries Decline Curve Conversions.xlsx`
   - use for decline conversion details between systems
@@ -65,7 +63,7 @@ Use these files as the domain documentation set of record when the checked-in co
 
 When answering a question, prefer this order of evidence:
 
-1. generated entities and server code in `Tauris.PhdWin`
+1. generated entities and server code in the local PhdWIN implementation
 2. `docs/PHDWIN_DATA_MAP.md` and other checked-in markdown docs
 3. the reference-inputs library above for domain interpretation, comparison logic, and table meaning
 
