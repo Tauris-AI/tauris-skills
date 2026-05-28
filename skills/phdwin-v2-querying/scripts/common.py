@@ -39,6 +39,8 @@ def detect_source_type(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix == ".phz":
         return "phz"
+    if suffix == ".zip":
+        return "zip"
     if suffix in {".phd", ".mod"}:
         return "native"
     if suffix in {".sqlite", ".db"}:

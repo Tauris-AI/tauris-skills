@@ -91,7 +91,7 @@ Cloud-hosted AI environments usually cannot access the user's local ODBC driver.
 
 When a user wants to work with a local `.phz` file from the PhdWIN desktop application:
 
-1. Treat `.phz` as a ZIP-style package when possible.
+1. Treat `.phz` as a ZIP package with a PhdWIN-specific extension.
 2. Extract or inspect it.
 3. Locate the `.Phd` and optional `.MOD` files.
 4. Tell the user the dataset folder, not the file, is the ODBC target.
@@ -103,8 +103,8 @@ When a user wants to work with a local `.phz` file from the PhdWIN desktop appli
 Preferred pipeline:
 
 ```text
-.phz
-  -> extract .Phd / .MOD
+.phz renamed ZIP package
+  -> extract .Phd / .MOD and related files
   -> Clarion TopSpeed ODBC
   -> Python pyodbc runner
   -> CSV / SQLite / API
@@ -135,6 +135,7 @@ Codex should not fabricate query results. If the driver or dataset is unavailabl
 
 The skill should help generate a local runner in this order:
 
+- `phdwin_cli.py` - single command surface for environment checks, source inspection, `.phz` extraction, smoke tests, SQLite export, and the optional wizard
 - `list_odbc_drivers.py` - prints installed ODBC drivers
 - `extract_phz.py` - extracts `.phz` into a dataset folder
 - `smoke_test.py` - attempts read-only queries against core tables
@@ -157,17 +158,55 @@ Preferred implementation order:
 Preferred command-line workflow:
 
 ```text
-python list_odbc_drivers.py
-python extract_phz.py <file.phz>
-python smoke_test.py <dataset-folder>
-python export_sqlite.py <dataset-folder> <output.sqlite>
+python scripts/phdwin_cli.py env
+python scripts/phdwin_cli.py inspect <file.phz | dataset-folder | extracted.sqlite>
+python scripts/phdwin_cli.py extract <file.phz>
+python scripts/phdwin_cli.py smoke <dataset-folder>
+python scripts/phdwin_cli.py export-sqlite <dataset-folder> <output.sqlite>
 ```
 
 Treat the wizard as convenience only. Do not make it the primary execution path until the lower-level scripts are proven on real client machines.
 
+## ChatGPT And Codex Surfaces
+
+Use different integration patterns depending on where the agent runs:
+
+- Codex CLI, Codex app local workflows, and IDE agents can call the local CLI directly when the workspace has access to the scripts and the dataset path.
+- ChatGPT web/desktop should not be assumed to execute local `.phz`, `.phd`, `.mod`, ODBC, or Python CLI commands directly.
+- For ChatGPT app-style access, expose this workflow through an MCP server or Apps SDK app that runs near the data and shells out to the CLI or imports the same Python functions.
+- If the MCP server is on a local developer machine or private network, use the supported tunnel/remote-server pattern rather than claiming ChatGPT can connect to a local process directly.
+- Keep MCP tools read-only by default: environment check, inspect source, extract `.phz`, smoke-test, export SQLite, list tables, and run approved `SELECT` queries.
+
+## Test Harness
+
+Use `scripts/test_cli_harness.py` for local smoke coverage of the CLI surface.
+
+It validates:
+
+- command parsing
+- `.phz` source inspection
+- `.phz` extraction using a synthetic archive
+- extracted dataset-folder inspection
+- extracted SQLite inspection
+- clean failure when ODBC prerequisites are unavailable
+
+Run it from the skill folder:
+
+```bash
+python3 scripts/test_cli_harness.py
+```
+
+This harness does not prove Clarion / TopSpeed ODBC access. Real native extraction still needs a Windows integration test with:
+
+- Windows Python
+- `pyodbc`
+- Clarion / TopSpeed ODBC driver
+- a real PhdWIN dataset folder containing `.phd` and optional `.mod`
+
 ## Extraction Guidance
 
 - PhdWIN v2 datasets are Clarion TopSpeed based and require the Clarion/TopSpeed ODBC driver for the supported direct extraction path.
+- A `.phz` file is a ZIP archive with a PhdWIN-specific extension. Its purpose in this workflow is to provide the contained `.Phd`, `.MOD`, and related dataset files.
 - If the user does not have the driver, tell them they need to obtain and install it before attempting native extraction.
 - The extraction goal is not just to open the `.phz`; it is to produce extracted SQLite tables with stable naming that downstream query workflows understand.
 - Keep extraction guidance practical:
@@ -250,6 +289,7 @@ Depending on the request, produce one of these:
 Use the references directory by subfolder:
 
 - `references/workflow/`
+  - `phz-getting-started.md`: non-coder first-run workflow for turning a local `.phz` file into extracted SQLite
   - `extraction-guide.md`: driver requirement, extraction prerequisites, and expected extracted table shape
   - `api-endpoints.md`: verified REST endpoints and request shapes from the local PhdWIN implementation
   - `query-patterns.md`: safe SQL and endpoint usage patterns
