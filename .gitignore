@@ -24,6 +24,15 @@ docs/planning.md
 exports/
 data/
 tmp/
+!areas/*/mcp-servers/*/data/
+!areas/*/mcp-servers/*/data/README.md
+areas/*/mcp-servers/*/data/original/**
+areas/*/mcp-servers/*/data/extracted/**
+areas/*/mcp-servers/*/data/review/**
+!areas/*/mcp-servers/*/data/original/.gitkeep
+!areas/*/mcp-servers/*/data/extracted/.gitkeep
+!areas/*/mcp-servers/*/data/review/.gitkeep
+!areas/phdwin-to-aries/mcp-servers/PHDWin_to_Aries_MCP/reference/templates/Aries_Template.accdb
 
 # Python/runtime noise
 __pycache__/

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "phdwinv2": {
+      "command": "py",
+      "args": [
+        "-3.14",
+        "C:/Dev/tauris-skills/areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/scripts/phdwinv2_mcp_server.py"
+      ],
+      "env": {
+        "PHDWIN_ODBC_DRIVER": "Exact Driver Name From pyodbc.drivers()"
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 Draft or review a PhdWIN database query using the repository skill material.
 
-Use `skills/phdwin-querying/SKILL.md` first, then load relevant reference files.
+Use `areas/phdwin-v2/skills/phdwin-v2-querying/SKILL.md` first, then load relevant reference files.
 
 The output should include:
 

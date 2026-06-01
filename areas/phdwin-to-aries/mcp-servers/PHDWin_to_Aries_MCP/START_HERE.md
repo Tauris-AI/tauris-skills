@@ -1,0 +1,210 @@
+# PHDWin To Aries Cowork MCP
+
+Turnkey local MCP package for Claude Cowork to inspect PHDWin v2 datasets for PHDWin-to-Aries conversion review.
+
+Primary workflow: [PHDWIN_TO_ARIES_PLAYBOOK.md](PHDWIN_TO_ARIES_PLAYBOOK.md)
+
+Table semantics: [PHDWIN_TO_ARIES_TABLE_MAP.md](PHDWIN_TO_ARIES_TABLE_MAP.md)
+
+Conversion reference pack: [reference/README.md](reference/README.md)
+
+## Purpose
+
+This package lets Cowork:
+
+- inspect `.phz`, `.zip`, extracted `.phd/.mod` folders, and SQLite review databases
+- verify local Python, `pyodbc`, FastMCP, and ODBC driver visibility
+- extract `.phz` packages
+- check PHDWin-to-Aries conversion readiness
+- sample key PHDWin source tables
+- export a stable SQLite review copy
+- run read-only `SELECT` queries
+
+It does not write back to native PHDWin `.phd`, `.mod`, or TopSpeed files.
+
+## Operating Model
+
+The Clarion / TopSpeed ODBC driver is only required to create the SQLite review database from native PHDWin files.
+
+```text
+PHDWin .phz / .phd + .mod
+  -> Clarion / TopSpeed ODBC on one driver-equipped Windows machine
+  -> phdwin_to_aries_review.sqlite
+  -> Cowork review against SQLite without Clarion
+```
+
+Most users should work from the SQLite review database. They do not need the Clarion driver once the SQLite file has been created.
+
+## Requirements Checklist
+
+For one-time native PHDWin extraction:
+
+- Windows machine
+- 32-bit Python if the Clarion / TopSpeed driver is 32-bit
+- `pyodbc`
+- `fastmcp`
+- Clarion / TopSpeed ODBC driver visible to that same Python
+- local `.phz` or extracted `.phd/.mod` source files
+
+For normal Cowork review from SQLite:
+
+- Windows machine running Claude Cowork
+- Python with `fastmcp`
+- SQLite review database produced from the PHDWin source
+- no Clarion driver required
+
+## 1. Run Install Check
+
+Open Command Prompt and run each line separately:
+
+```cmd
+py -3.14 --version
+py -3.14 -c "import pyodbc, fastmcp; print('pyodbc', pyodbc.version); print('fastmcp ok')"
+py -3.14 -c "import pyodbc; [print(d) for d in pyodbc.drivers()]"
+```
+
+You need the Clarion / TopSpeed ODBC driver to appear in the driver list. If it does not appear, the usual cause is a 32-bit / 64-bit mismatch — the Clarion driver is 32-bit but your default Python is 64-bit.
+
+If the Clarion / TopSpeed / SoftVelocity driver is not installed, get it here:
+
+```text
+https://softvelocity.myshopify.com/
+```
+
+### 32-bit Python (required if Clarion driver is 32-bit)
+
+The Clarion / TopSpeed ODBC driver is typically 32-bit. A 64-bit Python cannot see it. You need a 32-bit Python installed side-by-side — they coexist without conflict and are selected by version flag (`py -3.12-32` vs `py -3.14-64`).
+
+To download and install 32-bit Python 3.12 from Command Prompt:
+
+```cmd
+curl -o python-3.12.9-32bit.exe https://www.python.org/ftp/python/3.12.9/python-3.12.9.exe
+python-3.12.9-32bit.exe
+```
+
+In the installer, check **"Add Python to PATH"** and click **Install Now**.
+
+After installing, confirm both versions are visible:
+
+```cmd
+py --list
+```
+
+You should see both a `-64` and a `-32` entry. Use the `-32` version flag when running the MCP server for native PHDWin extraction.
+
+If you already have a SQLite review database, the Clarion driver check can fail and Cowork can still perform SQLite-only review.
+
+## 2. Add To Cowork
+
+Open Cowork:
+
+1. Settings
+2. Developer
+3. Edit Config
+
+Merge this block from `cowork_config.example.json`:
+
+```json
+{
+  "mcpServers": {
+    "phdwin-to-aries": {
+      "command": "py",
+      "args": [
+        "-3.14",
+        "C:/Dev/tauris-skills/areas/phdwin-to-aries/mcp-servers/PHDWin_to_Aries_MCP/scripts/phdwin_mcp_server.py"
+      ]
+    }
+  }
+}
+```
+
+If your Cowork config already has `mcpServers`, add only the `phdwin-to-aries` entry inside it.
+
+## 3. Restart Cowork
+
+Fully restart Cowork after editing config. Then go back to Settings -> Developer and confirm `phdwin-to-aries` appears in the local MCP server list.
+
+For development restarts and stale SQLite lock cleanup, run:
+
+```cmd
+C:\Dev\tauris-skills\areas\phdwin-to-aries\mcp-servers\PHDWin_to_Aries_MCP\restart_cowork_clean.bat
+```
+
+To also delete generated review SQLite databases:
+
+```cmd
+C:\Dev\tauris-skills\areas\phdwin-to-aries\mcp-servers\PHDWin_to_Aries_MCP\restart_cowork_clean.bat /DELETE_REVIEW_DB
+```
+
+## 4. First Cowork Prompt
+
+```text
+Use the phdwin-to-aries MCP server. Run env_check and tell me whether this machine is ready to query native PHDWin v2 files for PHDWin-to-Aries conversion.
+```
+
+## PHDWin To Aries Workflow Prompt
+
+For the full conversion-focused workflow, use `PHDWIN_TO_ARIES_PLAYBOOK.md`.
+
+If using Claude Code with this folder opened as the project, put files here:
+
+```text
+data/original/   original .phz, .zip, .phd/.mod files
+data/extracted/  extracted PHDWin dataset folders
+data/review/     generated SQLite review databases
+reports/         readiness memos and mapping notes
+```
+
+```text
+Use the phdwin-to-aries MCP server.
+
+I want a PHDWin-to-Aries conversion readiness review for this source:
+C:\Path\To\Client\File.phz
+
+Steps:
+1. Run env_check.
+2. Inspect the source.
+3. If it is a .phz, extract it to a sibling folder.
+4. Run conversion_readiness.
+5. Run conversion_profile.
+6. Tell me which PHDWin source tables and fields should drive Aries property, ownership, forecast, production history, economics, filters, sorts, and lookup mapping.
+7. Do not modify the native PHDWin files.
+```
+
+## Main Tools
+
+- `env_check`
+- `inspect_source`
+- `extract_phz`
+- `conversion_readiness`
+- `conversion_profile`
+- `sample_table`
+- `get_columns`
+- `run_select_query`
+- `export_sqlite`
+
+## Driver Override
+
+If the Clarion / TopSpeed driver appears under a name the server does not auto-detect, use `cowork_config.with_driver_override.example.json` and set:
+
+```json
+"PHDWIN_ODBC_DRIVER": "Exact Driver Name From pyodbc.drivers()"
+```
+
+## Current Limitation
+
+Cowork must launch a Windows Python environment that can see the Clarion / TopSpeed ODBC driver. WSL Python usually cannot see Windows-only ODBC drivers.
+
+## Where To Get The TopSpeed ODBC Driver
+
+If the SoftVelocity TopSpeed ODBC driver is not installed, it can be purchased and downloaded from the vendor:
+
+https://softvelocity.myshopify.com/
+
+Install the 32-bit version if your PHDWin installation uses a 32-bit driver (most common). After installing, confirm it appears in the 32-bit ODBC driver list by running:
+
+```cmd
+py -3.12-32 -c "import pyodbc; [print(d) for d in pyodbc.drivers()]"
+```
+
+Look for `SoftVelocity Topspeed driver (*.tps)` in the output.

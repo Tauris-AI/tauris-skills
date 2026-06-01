@@ -2,7 +2,7 @@
 
 Review the provided `AC_ECONOMIC` table notes, examples, or proposed changes using the repository skill material.
 
-Use `skills/aries-ac-economic/SKILL.md` first, then load only the relevant files from `skills/aries-ac-economic/references/`.
+Use `areas/aries/skills/aries-ac-economic/SKILL.md` first, then load only the relevant files from `areas/aries/skills/aries-ac-economic/references/`.
 
 Check for:
 

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "phdwin-to-aries": {
+      "command": "py",
+      "args": [
+        "-3.14",
+        "C:/Dev/tauris-skills/areas/phdwin-to-aries/mcp-servers/PHDWin_to_Aries_MCP/scripts/phdwin_mcp_server.py"
+      ]
+    }
+  }
+}
