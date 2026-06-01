@@ -1,11 +1,11 @@
 ---
 name: phdwin-v2-querying
-description: Use for PhdWIN v2 extraction prerequisites, Clarion driver guidance, SQLite extracted table mapping, key/join explanation, and safe read-only querying of extracted PhdWIN inputs using reusable lookup logic.
+description: Use for PhdWIN v2 extraction prerequisites, Clarion driver guidance, PHDWin report-generated Access database inspection, SQLite extracted table mapping, key/join explanation, and safe read-only querying of extracted PhdWIN inputs using reusable lookup logic.
 ---
 
 # PhdWIN V2 Querying
 
-Use this skill when a task involves a local PhdWIN v2 implementation, PhdWIN v2 Clarion/Topspeed datasets, extraction prerequisites, SQLite extracted-table interpretation, schema discovery, read-only query drafting, or mapping petroleum-engineering questions onto the PhdWIN data model.
+Use this skill when a task involves a local PhdWIN v2 implementation, PhdWIN v2 Clarion/Topspeed datasets, PHDWin report-generated Access databases, extraction prerequisites, SQLite extracted-table interpretation, schema discovery, read-only query drafting, or mapping petroleum-engineering questions onto the PhdWIN data model.
 
 Use only the checked-in skill references, generated entity maps, bundled Tauris-authored notes, cleared bundled reference artifacts, and source code in this repo. Do not rely on proprietary vendor help files, local reference-input folders, uncommitted documents, or third-party manuals/spreadsheets unless they are explicitly cleared for redistribution.
 
@@ -46,43 +46,49 @@ Cloud-hosted AI environments usually cannot access the user's local ODBC driver.
    - reusable select-query design
 2. Determine the source type first:
    - native PhdWIN input: `.phz`, `.phd`, `.mod`
+   - PHDWin report-generated Access database: `.mdb`, `.accdb`
    - extracted SQLite database: `.sqlite`, `.db`
 3. If the source type is native PhdWIN, start with extraction prerequisites:
    - explain that PhdWIN v2 uses Clarion TopSpeed (`.tps`) storage
    - explain that a Clarion/TopSpeed ODBC driver is required for the supported direct extraction workflow
    - if the driver is missing, instruct the user to obtain and install it before attempting native extraction
    - explain that the target outcome is a set of extracted SQLite tables named consistently with the local implementation
-4. If the source type is extracted SQLite:
+4. If the source type is a PHDWin report-generated Access database:
+   - use Access ODBC/`pyodbc` for read-only inventory and sampling
+   - list tables and columns before assuming native PHDWin table names or semantics
+   - treat it as a report/export artifact until examples prove table parity with native extraction
+   - note tracking reference `663545` when documenting this source path
+5. If the source type is extracted SQLite:
    - skip the Clarion driver prerequisite
    - confirm that the SQLite file exists and opens
    - confirm that the expected extracted tables are present
    - keep the guidance SQLite-oriented
-5. Restate the business question in PhdWIN terms: project, case/well, forecast, owner, group, filter, sort, history, investment, or model variable.
-6. Decide the access path:
+6. Restate the business question in PhdWIN terms: project, case/well, forecast, owner, group, filter, sort, history, investment, or model variable.
+7. Decide the access path:
    - use existing REST endpoints first when the repo already exposes the needed data
    - use `/api/schema` and `/api/schematable` to discover tables and columns
    - use `/api/query` only for read-only SQL that is not already covered by a typed endpoint
-7. Identify the minimum required tables and anchor keys before drafting SQL.
-8. Explain the extracted table layout in business terms:
+8. Identify the minimum required tables and anchor keys before drafting SQL.
+9. Explain the extracted table layout in business terms:
    - what table contains the requested inputs
    - which keys join it to surrounding tables
    - whether it is a `PHD_*` or `MOD_*` source
-9. Default to read-only work. For exploratory SQL, prefer narrow projections, explicit filters, and small row counts.
-10. Resolve table names using the same placeholder rules as the local implementation:
+10. Default to read-only work. For exploratory SQL, prefer narrow projections, explicit filters, and small row counts.
+11. Resolve table names using the same placeholder rules as the local implementation:
    - `{{phd}}` resolves to the `.phd` file name.
    - `{{mod}}` resolves to the `.mod` file name.
    - Generated entity annotations such as `{{phd}}\&MAINLSE` are the canonical source of truth.
-11. Document dataset assumptions clearly:
+12. Document dataset assumptions clearly:
    - datasource path or import workspace
    - whether the source is unzipped `.phz`, Access, Excel, CSV, or extracted SQLite
    - any assumed joins or code mappings
    - any uncertainty around customer-specific customizations
-12. When the request comes from prior ARIES-conversion work, reuse that logic as read-only lookup logic:
+13. When the request comes from prior ARIES-conversion work, reuse that logic as read-only lookup logic:
    - identify which extracted PhdWIN or SQLite tables answer the question
    - explain the keys and fields required from those tables
    - keep the result as `SELECT`-style guidance or endpoint calls only
    - do not drift into export or mutation logic unless explicitly requested
-13. For mutation requests, do not draft direct writes until you have:
+14. For mutation requests, do not draft direct writes until you have:
    - a dry-run plan
    - exact target rows/tables
    - rollback or restore path

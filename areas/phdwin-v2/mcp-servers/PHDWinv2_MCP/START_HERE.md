@@ -19,7 +19,7 @@ Bundled reference artifacts include the Aries Access template and the cleared PH
 
 This package lets Cowork:
 
-- inspect `.phz`, `.zip`, extracted `.phd/.mod` folders, and SQLite review databases
+- inspect `.phz`, `.zip`, extracted `.phd/.mod` folders, PHDWin report-generated Access databases, and SQLite review databases
 - verify local Python, `pyodbc`, FastMCP, and ODBC driver visibility
 - extract `.phz` packages
 - check PHDWin-to-Aries conversion readiness
@@ -68,6 +68,15 @@ For normal Cowork review from SQLite:
 - Python with `fastmcp`
 - SQLite review database produced from the PHDWin source
 - no Clarion driver required
+
+For PHDWin report-generated Access database examples:
+
+- `.mdb` or `.accdb` file produced by PHDWin v2 reports
+- Windows Python with `pyodbc`
+- Microsoft Access ODBC driver visible to that Python
+- table/column inventory before treating the file as equivalent to native PHDWin extraction
+
+Tracking note: `663545`.
 
 ## 1. Run Install Check
 
