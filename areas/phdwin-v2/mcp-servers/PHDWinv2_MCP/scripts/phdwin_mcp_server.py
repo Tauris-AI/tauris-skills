@@ -23,6 +23,8 @@ from common import (
     validate_dataset_dir,
 )
 from export_sqlite import sqlite_table_name
+from aries_export import export_aries
+from csv_export import export_sqlite_tables_to_csv
 
 try:
     from fastmcp import FastMCP
@@ -33,7 +35,7 @@ except ImportError as exc:  # pragma: no cover - depends on client machine setup
     ) from exc
 
 
-mcp = FastMCP("phdwin-to-aries")
+mcp = FastMCP("phdwin-v2")
 
 DEFAULT_TABLES = [
     "PHD_TITLES",
@@ -721,6 +723,68 @@ def export_sqlite(
     return {"sqlitePath": str(target), "exported": exported, "skipped": skipped}
 
 
+@mcp.tool
+def export_aries_csv(
+    sqlite_path: str,
+    output_dir: str,
+    lease_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    """Build Aries-named CSV review tables from a PHDWin SQLite export."""
+    source = _path(sqlite_path)
+    target = _path(output_dir)
+    result = export_aries(source, target, lease_ids=lease_ids)
+    return result.to_dict()
+
+
+@mcp.tool
+def export_table_csvs(
+    sqlite_path: str,
+    output_dir: str,
+    tables: list[str] | None = None,
+    overwrite: bool = True,
+) -> dict[str, Any]:
+    """Export raw SQLite tables to one named CSV file per table.
+
+    Use this when users want the extracted PHDWin tables as ordinary files
+    that Claude Code, Excel, Power BI, or any local script can review without
+    needing the Clarion driver or Access ODBC.
+    """
+    return export_sqlite_tables_to_csv(
+        _path(sqlite_path),
+        _path(output_dir),
+        tables=tables,
+        overwrite=overwrite,
+    )
+
+
+@mcp.tool
+def export_aries_accdb(
+    sqlite_path: str,
+    output_accdb_path: str,
+    output_dir: str | None = None,
+    template_accdb_path: str | None = None,
+    lease_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    """Build Aries CSV tables and write an Aries .accdb from the packaged template.
+
+    Requires Windows Python with pyodbc and the Microsoft Access ODBC driver.
+    CSV output is always produced; .accdb output uses the included
+    reference/templates/Aries_Template.accdb unless template_accdb_path is supplied.
+    """
+    source = _path(sqlite_path)
+    accdb = _path(output_accdb_path)
+    target_dir = _path(output_dir) if output_dir else accdb.with_suffix("")
+    template = _path(template_accdb_path) if template_accdb_path else None
+    result = export_aries(
+        source,
+        target_dir,
+        template_path=template,
+        accdb_path=accdb,
+        lease_ids=lease_ids,
+    )
+    return result.to_dict()
+
+
 @mcp.resource("phdwin://aries-conversion-map")
 def aries_conversion_map() -> str:
     """High-level PHDWin-to-Aries conversion map for Claude Cowork."""
@@ -752,6 +816,9 @@ def aries_conversion_map() -> str:
                 "conversion_readiness",
                 "conversion_profile",
                 "export_sqlite to create a stable derived review database",
+                "export_table_csvs when users want one CSV per extracted PHDWin table",
+                "export_aries_csv for Aries-named review tables",
+                "export_aries_accdb on Windows when pyodbc and the Access ODBC driver are installed",
                 "use run_select_query against SQLite for deeper QA",
             ],
         },

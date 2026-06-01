@@ -13,8 +13,7 @@ This repository is intended to be the source of truth for curated domain skills 
 ## Areas
 
 - `areas/aries`: ARIES concepts, Access table contracts, economic table review, and ARIES skill setup.
-- `areas/phdwin-v2`: generic read-only PHDWin v2 inspection, extraction, and export support.
-- `areas/phdwin-to-aries`: PHDWin-to-Aries conversion review, table mapping, and Access export reference data.
+- `areas/phdwin-v2`: PHDWin v2 inspection, extraction, SQLite/CSV review exports, and PHDWin-to-Aries workflow support.
 - `areas/petroleum-economics`: repeatable review workflows for petroleum engineering economics.
 
 ## Current Skills
@@ -26,8 +25,7 @@ This repository is intended to be the source of truth for curated domain skills 
 
 ## MCP Servers
 
-- `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP`: generic read-only PHDWin v2 inspection, `.phz` extraction, table sampling, and SQLite export.
-- `areas/phdwin-to-aries/mcp-servers/PHDWin_to_Aries_MCP`: PHDWin-to-Aries conversion-readiness review, table mapping, risk memo workflow, named review artifacts, and Aries Access reference material. Final production conversion/export remains in `Tauris.PhdWin`.
+- `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP`: read-only PHDWin v2 inspection, `.phz` extraction, table sampling, SQLite/CSV exports, PHDWin-to-Aries conversion-readiness review, and optional Aries Access export reference material.
 
 ## Safety Rules
 

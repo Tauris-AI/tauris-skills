@@ -25,7 +25,6 @@ Load these when relevant:
 - `references/workflow/api-endpoints.md`
 - `references/schema/generated-entity-map.md`
 - `references/lookups/select-query-map.md`
-- `references/source-library/reference-inputs-index.md`
 
 ## Copilot Guidance
 
@@ -35,3 +34,4 @@ Load these when relevant:
 - If the user is missing prerequisites, tell them before generating query logic.
 - Only treat the Clarion driver as a prerequisite for native `.phz`, `.phd`, or `.mod` inputs.
 - If the user already has SQLite output, move directly to table and query guidance.
+- Do not rely on proprietary vendor help files or local-only reference-input folders.

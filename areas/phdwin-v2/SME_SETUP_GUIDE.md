@@ -1,6 +1,6 @@
 # PHDWin v2 Area - SME Setup Guide
 
-Lets Claude Cowork inspect PHDWin v2 source files and exported review databases through the area-local MCP server and skill.
+Lets Claude Cowork inspect PHDWin v2 source files, build SQLite/CSV review artifacts, and run PHDWin-to-Aries conversion-readiness workflows through the area-local MCP server and skill.
 
 ## Prerequisites
 
@@ -58,6 +58,12 @@ Use prompts like:
 Use the PHDWin v2 area. Inspect this .phz, list available tables, export a SQLite review database, and summarize the core petroleum economics tables.
 ```
 
+For conversion review:
+
+```text
+Use the PHDWin v2 area. Run the PHDWin-to-Aries workflow against this source, export a SQLite review database, create named CSV files for the mapped Aries tables, and summarize conversion risks. Do not modify native PHDWin files.
+```
+
 ## Available Workflows
 
 - check environment and ODBC driver
@@ -67,6 +73,8 @@ Use the PHDWin v2 area. Inspect this .phz, list available tables, export a SQLit
 - sample rows
 - run read-only SQL
 - export SQLite or CSV review artifacts
+- export PHDWin-to-Aries mapped CSV tables
+- optionally create an Aries Access export from the bundled template when Windows Access ODBC is available
 
 ## Troubleshooting
 

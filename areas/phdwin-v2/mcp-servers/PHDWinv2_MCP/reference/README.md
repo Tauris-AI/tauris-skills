@@ -25,6 +25,6 @@ The template is intentionally committed as reference material. Do not replace it
 
 ## Excluded
 
-The package intentionally excludes raw/sample databases and third-party/vendor documents from `Tauris.PhdWin/docs/reference-inputs`, including large `.mdb`, `.accdb`, `.pdf`, `.chm`, `.docx`, and `.xlsx` reference files, unless they are explicitly cleared for redistribution.
+The package intentionally excludes raw/sample databases and third-party/vendor documents unless they are explicitly cleared for redistribution. The included Access template is the only bundled database artifact intended for this public workflow.
 
 Do not commit client PHDWin files, generated SQLite exports, extracted source folders, or generated reports.

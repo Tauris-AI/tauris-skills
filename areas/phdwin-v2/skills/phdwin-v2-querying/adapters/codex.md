@@ -32,14 +32,13 @@ Then load by task:
   - `references/schema/generated-entity-map.md`
 - lookup design:
   - `references/lookups/select-query-map.md`
-- broader domain interpretation:
-  - `references/source-library/reference-inputs-index.md`
 
 ## Codex Instructions
 
 - Use the skill progressively. Do not load every reference file unless the task needs it.
 - Anchor table names and routes in the checked-in generated entities and server code first.
 - Explicitly separate verified facts from inferred guidance.
+- Do not rely on proprietary vendor help files or local-only reference-input folders.
 - When the user is pre-extraction, prioritize driver/setup guidance over query examples.
 - When the user already has extracted tables, prioritize table purpose, keys, joins, and read-safe access paths.
 - When the task references older conversion work, reuse only the table/key lookup logic and keep the result read-only.

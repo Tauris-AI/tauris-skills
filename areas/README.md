@@ -5,8 +5,7 @@ This catalog groups the repo by petroleum workflow. Each area owns its skills, M
 ## Areas
 
 - `aries` - ARIES concepts, Access table contracts, and economic table review.
-- `phdwin-v2` - read-only PHDWin v2 inspection, native extraction, and review exports.
-- `phdwin-to-aries` - conversion-readiness review from PHDWin source data into Aries-ready artifacts.
+- `phdwin-v2` - read-only PHDWin v2 inspection, native extraction, review exports, and PHDWin-to-Aries conversion-readiness workflows.
 - `petroleum-economics` - general reserve and economics review workflows.
 
 ## Packaging Rule

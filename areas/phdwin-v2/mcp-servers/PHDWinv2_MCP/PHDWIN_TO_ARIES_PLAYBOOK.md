@@ -51,7 +51,7 @@ For a given PHDWin v2 source package, Cowork should answer:
 ## Standard Cowork Prompt
 
 ```text
-Use the phdwin-to-aries MCP server.
+Use the phdwin-v2 MCP server.
 
 Focus only on PHDWin-to-Aries conversion readiness and mapping review.
 
@@ -133,7 +133,7 @@ https://softvelocity.myshopify.com/
 ## SQLite Export Prompt
 
 ```text
-Use the phdwin-to-aries MCP server.
+Use the phdwin-v2 MCP server.
 
 Export the PHDWin-to-Aries review tables from:
 C:\Path\To\Client\ExtractedDataset

@@ -8,8 +8,8 @@ ARIES-specific review and table contract material.
 - Skill: `skills/aries-ac-economic`
 - Setup guide: `SME_SETUP_GUIDE.md`
 - Copilot prompt: `../../.github/prompts/aries-ac-economic-review.prompt.md`
-- Conversion reference docs: `../phdwin-to-aries/mcp-servers/PHDWin_to_Aries_MCP/reference/tauris-phdwin-docs`
-- Access template: `../phdwin-to-aries/mcp-servers/PHDWin_to_Aries_MCP/reference/templates/Aries_Template.accdb`
+- Conversion reference docs: `../phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/tauris-phdwin-docs`
+- Access template: `../phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/Aries_Template.accdb`
 
 ## Scope
 

@@ -27,13 +27,12 @@ Load these as needed:
 - `references/workflow/api-endpoints.md`
 - `references/workflow/query-patterns.md`
 - `references/schema/generated-entity-map.md`
-- `references/source-library/reference-inputs-index.md`
 
 ## Claude Instructions
 
 - Treat `SKILL.md` as the primary workflow.
 - Prefer verified repo evidence before inference.
-- If a conclusion comes mainly from the `reference-inputs` document library, say so explicitly.
+- Do not rely on proprietary vendor help files or local-only reference-input folders.
 - Distinguish clearly between:
   - extraction prerequisites
   - extracted-table interpretation
@@ -47,7 +46,7 @@ Load these as needed:
 ## Suggested Project Instruction
 
 ```text
-Use the PhdWIN v2 querying skill as the source of truth for extraction prerequisites, Clarion driver guidance, extracted SQLite table layout, key logic, and safe read-only query drafting. Reuse prior conversion knowledge only as a source for lookup logic, not export logic. Prefer repo-verified schema notes and generated entity mappings before making assumptions. When the answer depends mainly on the external reference library, say so explicitly.
+Use the PhdWIN v2 querying skill as the source of truth for extraction prerequisites, Clarion driver guidance, extracted SQLite table layout, key logic, and safe read-only query drafting. Reuse prior conversion knowledge only as a source for lookup logic, not export logic. Prefer repo-verified schema notes and generated entity mappings before making assumptions. Do not rely on proprietary vendor help files or local-only reference folders.
 ```
 
 ## Suggested Test Prompts

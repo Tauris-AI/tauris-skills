@@ -17,19 +17,7 @@ The working assumption is that the PHDWin database structure is stable across cl
 
 ## Source References
 
-Primary reference inputs currently available under:
-
-- docs/reference-inputs
-
-Most relevant current sources:
-
-- README.txt
-- `2021-03-23 PHDWin Datamodel.pdf`
-- `PHDWin User Manual.pdf`
-- `Phdwinout definitions_complete.xls`
-- `2023.05.15 - PHDWin to Aries  Revisions_v2.docx`
-- `Tauris Notes - PHDWin vs Aries.docx`
-- `Tauris Notes - Aries to PHDWin.docx`
+This public copy is grounded in checked-in Tauris-authored notes and source-code-derived table behavior. Proprietary vendor manuals, help files, private spreadsheets, and internal reference-input documents are intentionally excluded.
 
 Implementation references already in code:
 

@@ -7,8 +7,7 @@ description: Use for PhdWIN v2 extraction prerequisites, Clarion driver guidance
 
 Use this skill when a task involves a local PhdWIN v2 implementation, PhdWIN v2 Clarion/Topspeed datasets, extraction prerequisites, SQLite extracted-table interpretation, schema discovery, read-only query drafting, or mapping petroleum-engineering questions onto the PhdWIN data model.
 
-The current verified implementation source is the local PhdWIN implementation repo.
-The user-provided document set under the local `docs/reference-inputs` folder must be treated as a primary reference library for PhdWIN v2 behavior, table meaning, query context, and business interpretation.
+Use only the checked-in skill references, generated entity maps, and source code in this repo. Do not rely on proprietary vendor help files, local reference-input folders, or uncommitted documents.
 
 ## Adapters
 
@@ -298,26 +297,6 @@ Use the references directory by subfolder:
   - `generated-entity-map.md`: generated route-to-entity-to-table map built from the current repo
 - `references/lookups/`
   - `select-query-map.md`: PhdWIN tables and fields for common read-only lookup questions
-- `references/source-library/`
-  - `reference-inputs-index.md`: guide to the user-provided documents in the local `docs/reference-inputs` folder
-
-## External Reference Library
-
-When the task needs domain interpretation beyond what is already encoded in the repo, consult the user-provided source library in the local `docs/reference-inputs` folder.
-
-Use it selectively:
-
-- extraction and table inventory questions: start with the table/datamodel docs
-- forecasting and decline questions: use the ARPS and decline documents
-- lookup questions derived from prior ARIES-conversion work: use the local notes and revision docs only as mapping aids, then keep the final answer read-only
-- output/export questions: use the PHDWin output definitions and sample output files
-
-Do not restate undocumented behavior as fact unless it is supported by either:
-
-- generated entities or checked-in code
-- `docs/PHDWIN_DATA_MAP.md`
-- the curated reference library above
-
 ## Maintenance
 
 - When the local PhdWIN implementation changes, rebuild the entity map with:
@@ -326,4 +305,4 @@ Do not restate undocumented behavior as fact unless it is supported by either:
 python3 scripts/build_entity_map.py /path/to/phdwin-implementation > references/generated-entity-map.md
 ```
 
-- Keep this skill grounded in generated entity annotations, controller routes, and checked-in docs, not memory.
+- Keep this skill grounded in generated entity annotations, controller routes, and checked-in public docs, not memory or proprietary vendor help.

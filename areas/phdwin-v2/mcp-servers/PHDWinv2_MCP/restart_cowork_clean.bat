@@ -12,8 +12,8 @@ echo Closing Claude / Cowork processes...
 taskkill /IM Claude.exe /F >nul 2>nul
 taskkill /IM claude.exe /F >nul 2>nul
 
-echo Stopping phdwinv2 MCP Python processes...
-for /f "skip=1 tokens=2 delims=," %%P in ('wmic process where "commandline like '%%phdwinv2_mcp_server.py%%'" get processid /format:csv 2^>nul') do (
+echo Stopping phdwin-v2 MCP Python processes...
+for /f "skip=1 tokens=2 delims=," %%P in ('wmic process where "commandline like '%%phdwin_mcp_server.py%%'" get processid /format:csv 2^>nul') do (
     if not "%%P"=="" (
         echo   killing PID %%P
         taskkill /PID %%P /F >nul 2>nul
@@ -40,7 +40,18 @@ if exist "%DATA_DIR%" (
     del /s /q "%DATA_DIR%\*.tmp" >nul 2>nul
 )
 
+if /I "%~1"=="/DELETE_REVIEW_DB" (
+    echo.
+    echo WARNING: deleting review SQLite databases under %DATA_DIR%\review...
+    del /q "%DATA_DIR%\review\*.sqlite" >nul 2>nul
+    del /q "%DATA_DIR%\review\*.db" >nul 2>nul
+)
+
 echo.
-echo Done. Reopen Claude / Cowork from the Start Menu.
+echo Done.
+echo Reopen Claude / Cowork from the Start Menu, then retry the export.
+echo.
+echo To also delete review SQLite DBs, run:
+echo   %~nx0 /DELETE_REVIEW_DB
 
 endlocal

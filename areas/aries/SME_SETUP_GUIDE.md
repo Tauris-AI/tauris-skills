@@ -40,10 +40,10 @@ Use this area for:
 - Do not write directly to ARIES without explicit approval.
 - Use scrubbed or synthetic examples in public artifacts.
 - Keep conversion/export implementation in `Tauris.PhdWin`.
-- Use the PHDWin-to-Aries area when the task depends on source PHDWin data.
+- Use the PHDWin v2 area when the task depends on source PHDWin data or PHDWin-to-Aries conversion review.
 
 ## Troubleshooting
 
 - If the agent cannot find the skill, point it to `areas/aries/skills`.
-- If the task involves PHDWin source files, switch to `areas/phdwin-v2` or `areas/phdwin-to-aries`.
+- If the task involves PHDWin source files, switch to `areas/phdwin-v2`.
 - If the task is general petroleum economics, switch to `areas/petroleum-economics`.
