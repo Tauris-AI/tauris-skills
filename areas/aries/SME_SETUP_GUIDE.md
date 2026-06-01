@@ -19,6 +19,26 @@ dir C:\Dev\tauris-skills\areas\aries
 - `skills/aries-core`
 - `skills/aries-ac-economic`
 
+## Optional Cowork MCP Server
+
+For local ARIES Access database inspection, configure:
+
+- `mcp-servers/aries-mcp`
+
+The server name is `aries-mcp`, and the Python entrypoint is:
+
+```text
+areas/aries/mcp-servers/aries-mcp/aries_mcp.py
+```
+
+It supports both `.accdb` and `.mdb` paths through the Microsoft ACE Access ODBC driver.
+
+Use the example config:
+
+```text
+areas/aries/mcp-servers/aries-mcp/cowork_config.example.json
+```
+
 ## Recommended Prompt
 
 ```text
@@ -30,6 +50,7 @@ Use the ARIES area in this repo. Start with areas/aries/skills/aries-core/SKILL.
 Use this area for:
 
 - ARIES table concepts
+- ARIES `.accdb` / `.mdb` inspection through the optional MCP server
 - `AC_ECONOMIC` review
 - economic-line validation rules
 - dry-run change planning

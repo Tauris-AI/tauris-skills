@@ -32,3 +32,7 @@ This repository is intended to be the source of truth for curated domain skills 
 Do not commit secrets, passwords, private keys, raw production exports, DSNs, connection strings, license keys, or customer confidential data. Use sanitized schemas, synthetic examples, and environment variable placeholders.
 
 When a workflow writes to an ARIES, PhdWIN, or other production database, the skill must require an explicit dry-run or review step before mutation.
+
+## License
+
+This repository and its release packages are published under the MIT License. See `LICENSE`.

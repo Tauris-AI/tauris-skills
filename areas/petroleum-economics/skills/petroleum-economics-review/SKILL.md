@@ -1,6 +1,6 @@
 ---
 name: petroleum-economics-review
-description: Use for system-agnostic petroleum economics review workflows, including assumptions checks, forecast and price deck review, ownership/cost/capital/tax validation, PHDWin/ARIES-style concept mapping, and structured review output for human approval.
+description: Use only for system-agnostic petroleum economics reasonableness review: forecasts, price decks, ownership, costs, capital, taxes, reserves, cash flow, and economics QA after data has already been extracted or normalized. Do not use for PHDWin extraction, PHDWin-to-Aries conversion, ARIES Access contracts, or ARIES economic-line editing; use the PHDWin and ARIES skills first for those.
 ---
 
 # Petroleum Economics Review
@@ -8,6 +8,14 @@ description: Use for system-agnostic petroleum economics review workflows, inclu
 Use this skill for structured review of petroleum engineering economic inputs and outputs across systems.
 
 This skill is intentionally system agnostic. It uses the common concepts shared by systems such as PHDWin and ARIES, but it should not require a PHDWin table, ARIES Access table, or specific vendor format unless the user provides one.
+
+If the task is source-system work, route away from this skill:
+
+- PHDWin source extraction, table discovery, SQLite export, or `.phz/.phd/.mod` handling belongs in `phdwin-v2-querying`.
+- PHDWin-to-Aries conversion, ARIES Access export review, project/filter/sort mapping, and table-contract QA belongs in `aries-core`.
+- `AC_ECONOMIC` line interpretation or editing belongs in `aries-ac-economic`.
+
+Use this skill only after source-specific facts are already available and the user needs an economic/reviewer judgment layer.
 
 ## Core Economic Model
 
@@ -110,6 +118,8 @@ Use severity labels:
 ## Guardrails
 
 - Do not assume source-system field names imply the same business meaning across systems.
+- Do not treat this skill as a source of ARIES or PHDWin vendor behavior.
+- Do not copy from or summarize proprietary vendor help files, manuals, or uncommitted local reference inputs.
 - Do not treat missing optional data as fatal without explaining the economic impact.
 - Do not invent decline, ownership, tax, or price assumptions when source evidence is missing.
 - Keep write-back or conversion recommendations separate from review findings.

@@ -7,7 +7,9 @@ description: Use for PhdWIN v2 extraction prerequisites, Clarion driver guidance
 
 Use this skill when a task involves a local PhdWIN v2 implementation, PhdWIN v2 Clarion/Topspeed datasets, extraction prerequisites, SQLite extracted-table interpretation, schema discovery, read-only query drafting, or mapping petroleum-engineering questions onto the PhdWIN data model.
 
-Use only the checked-in skill references, generated entity maps, and source code in this repo. Do not rely on proprietary vendor help files, local reference-input folders, or uncommitted documents.
+Use only the checked-in skill references, generated entity maps, bundled Tauris-authored notes, cleared bundled reference artifacts, and source code in this repo. Do not rely on proprietary vendor help files, local reference-input folders, uncommitted documents, or third-party manuals/spreadsheets unless they are explicitly cleared for redistribution.
+
+The cleared PHDWin output definitions spreadsheet at `../../mcp-servers/PHDWinv2_MCP/reference/phdwin-v2/Phdwinout definitions_complete.xls` is allowed reference material for PHDWin v2 table/field interpretation and PHDWin-to-Aries mapping review.
 
 ## Adapters
 

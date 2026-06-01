@@ -11,6 +11,8 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
+from aries_economic import build_ac_economic_rows
+
 DEFAULT_DBSKEY = "168888"
 DEFAULT_PROJECT_KEY = "00_RSV_CAT"
 EXPORT_TABLE_ORDER = [
@@ -40,9 +42,10 @@ class AriesExportResult:
     accdb_path: Path | None
     table_counts: dict[str, int]
     warnings: list[str]
+    diagnostics: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "sourceSqlite": str(self.source_sqlite),
             "outputDir": str(self.output_dir),
             "csvDir": str(self.csv_dir),
@@ -50,6 +53,9 @@ class AriesExportResult:
             "tableCounts": self.table_counts,
             "warnings": self.warnings,
         }
+        if self.diagnostics is not None:
+            result["diagnostics"] = self.diagnostics
+        return result
 
 
 def row_get(row: dict[str, Any], *names: str, default: Any = "") -> Any:
@@ -243,7 +249,7 @@ def project_key(group: dict[str, Any]) -> str:
     return f"{sanitize_key(group_qualifier(group), 9)}{to_int(row_get(group, 'GRP_ID'))}"
 
 
-def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) -> tuple[dict[str, list[dict[str, Any]]], list[str], dict[str, Any]]:
     warnings: list[str] = []
     with open_sqlite(source_sqlite) as conn:
         titles = read_table(conn, "PHD_TITLES")
@@ -256,6 +262,18 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         categories = read_table(conn, "PHD_CATEGORY")
         monhist = read_table(conn, "PHD_MONHIST")
         daily = read_table(conn, "PHD_DAILY")
+        economic_source_tables = {
+            "PHD_PRODUCTNAMES": product_names,
+            "PHD_FORCAST": read_table(conn, "PHD_FORCAST"),
+            "PHD_LSESEGMENT": read_table(conn, "PHD_LSESEGMENT"),
+            "PHD_LSEPRODVAL": read_table(conn, "PHD_LSEPRODVAL"),
+            "PHD_ECON": read_table(conn, "PHD_ECON"),
+            "PHD_INVEST": read_table(conn, "PHD_INVEST"),
+            "PHD_INVESTDESCR": read_table(conn, "PHD_INVESTDESCR"),
+            "PHD_CUMVOL": read_table(conn, "PHD_CUMVOL"),
+            "MOD_SCEN": read_table(conn, "MOD_SCEN"),
+            "MOD_TEMPLATE": read_table(conn, "MOD_TEMPLATE"),
+        }
 
     if not leases:
         raise ValueError("PHD_MAINLSE is required to build Aries export tables.")
@@ -534,14 +552,15 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
 
     if not daily:
         warnings.append("PHD_DAILY was not present; AC_TEST and AC_DAILY are empty.")
-    warnings.append("AC_ECONOMIC forecast/economic line generation is intentionally conservative in this Python port; use CSV/ACCDB outputs for review and extend before relying on final economics.")
+    economic_result = build_ac_economic_rows(economic_source_tables, selected_lease_ids)
+    warnings.extend(economic_result.warnings)
 
     tables = {
         "AC_PROPERTY": ac_property,
         "AC_PRODUCT": ac_product,
         "AC_TEST": ac_test,
         "AC_DAILY": [],
-        "AC_ECONOMIC": [],
+        "AC_ECONOMIC": economic_result.rows,
         "ARLOOKUP": [],
         "AR_SIDEFILE": [],
         "AC_OWNER": [],
@@ -553,7 +572,7 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         "SORTFILTERS": sortfilters,
         "SelFilters": selfilters,
     }
-    return tables, warnings
+    return tables, warnings, {"acEconomic": economic_result.diagnostics}
 
 
 def write_csv_tables(tables: dict[str, list[dict[str, Any]]], csv_dir: Path) -> None:
@@ -655,7 +674,7 @@ def export_aries(
     csv_dir = output_dir / "csv"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    tables, warnings = build_aries_tables(source_sqlite, lease_ids=lease_ids)
+    tables, warnings, diagnostics = build_aries_tables(source_sqlite, lease_ids=lease_ids)
     write_csv_tables(tables, csv_dir)
 
     final_accdb_path: Path | None = None
@@ -673,6 +692,7 @@ def export_aries(
         accdb_path=final_accdb_path,
         table_counts=table_counts,
         warnings=warnings,
+        diagnostics=diagnostics,
     )
     with (output_dir / "aries-export-summary.json").open("w", encoding="utf-8") as handle:
         json.dump(result.to_dict(), handle, indent=2)

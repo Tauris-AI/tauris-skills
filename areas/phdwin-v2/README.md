@@ -9,6 +9,7 @@ Read-only PHDWin v2 inspection, extraction, and PHDWin-to-Aries workflow support
 - PHDWin-to-Aries playbook: `mcp-servers/PHDWinv2_MCP/PHDWIN_TO_ARIES_PLAYBOOK.md`
 - PHDWin-to-Aries table map: `mcp-servers/PHDWinv2_MCP/PHDWIN_TO_ARIES_TABLE_MAP.md`
 - Aries Access template: `mcp-servers/PHDWinv2_MCP/reference/templates/Aries_Template.accdb`
+- PHDWin output definitions: `mcp-servers/PHDWinv2_MCP/reference/phdwin-v2/Phdwinout definitions_complete.xls`
 - Setup guide: `SME_SETUP_GUIDE.md`
 - Copilot prompt: `../../.github/prompts/phdwin-query.prompt.md`
 

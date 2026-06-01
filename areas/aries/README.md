@@ -6,11 +6,14 @@ ARIES-specific review and table contract material.
 
 - Skill: `skills/aries-core`
 - Skill: `skills/aries-ac-economic`
+- MCP server: `mcp-servers/aries-mcp`
 - Setup guide: `SME_SETUP_GUIDE.md`
 - Copilot prompt: `../../.github/prompts/aries-ac-economic-review.prompt.md`
-- Conversion reference docs: `../phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/tauris-phdwin-docs`
+- Conversion reference docs: `../phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/aries-conv-docs`
 - Access template: `../phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/Aries_Template.accdb`
 
 ## Scope
 
-This area explains ARIES table expectations and review rules. Production Access export remains in `Tauris.PhdWin`; this public repo provides agent-facing guidance and review assets.
+This area explains ARIES table expectations and review rules. It also includes a Python `aries-mcp` server for local Cowork inspection and maintenance of ARIES `.accdb` and `.mdb` files.
+
+Production PHDWin-to-Aries export remains in the PHDWin v2 workflow; this area provides agent-facing ARIES guidance, review assets, and Access database tools.

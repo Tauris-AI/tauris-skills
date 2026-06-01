@@ -23,6 +23,7 @@ docs/planning.md
 *.db
 exports/
 data/
+dist/
 tmp/
 !areas/*/mcp-servers/*/data/
 !areas/*/mcp-servers/*/data/README.md

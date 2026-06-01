@@ -1,8 +1,8 @@
 # PHDWin To Aries Cowork Playbook
 
-This package is for using Claude Cowork as a local analyst for PHDWin-to-Aries conversion review.
+This package is for using Claude Cowork as a local Python analyst for PHDWin-to-Aries conversion review and review-artifact generation.
 
-The MCP server should be treated as a read-only inspection layer over PHDWin source data. Actual Aries conversion/export should remain in the controlled Tauris.PhdWin workflow.
+The MCP server should be treated as a read-only inspection layer over PHDWin source data. It can also generate Aries-named CSV review tables and an optional template-backed Aries `.accdb` from a SQLite review database. Native PHDWin files remain read-only.
 
 The Clarion / TopSpeed ODBC driver is only required for the one-time native PHDWin extraction/export step. Once a SQLite review database exists, Cowork can review that SQLite file without the Clarion driver.
 
@@ -10,10 +10,13 @@ Use `PHDWIN_TO_ARIES_TABLE_MAP.md` as the source table semantics guide when revi
 
 Use `reference/` for the deeper Tauris.PhdWin conversion context and bundled Aries Access template. In particular:
 
-- `reference/tauris-phdwin-docs/PHDWIN_DATA_MAP.md`
-- `reference/tauris-phdwin-docs/ARIES_ACCESS_TABLE_CONTRACTS.md`
-- `reference/tauris-phdwin-docs/ARIES_SCHEMA_MAPPING.md`
+- `reference/aries-conv-docs/PHDWIN_DATA_MAP.md`
+- `reference/aries-conv-docs/ARIES_ACCESS_TABLE_CONTRACTS.md`
+- `reference/aries-conv-docs/ARIES_SCHEMA_MAPPING.md`
 - `reference/templates/Aries_Template.accdb`
+- `reference/phdwin-v2/Phdwinout definitions_complete.xls`
+
+This MCP package is Python-only at runtime. Do not bundle Tauris C# source code into this repo.
 
 ## ⚠️ Clarion / TopSpeed ODBC Driver Constraint
 
@@ -109,7 +112,8 @@ Ask Cowork to inspect these before any conversion run:
 1. Use native ODBC only long enough to inspect and export.
 2. Export selected PHDWin tables to SQLite.
 3. Use SQLite for deeper Cowork analysis.
-4. Keep Aries conversion/export in Tauris.PhdWin.
+4. Generate review artifacts from SQLite with `export_aries_csv` or, when Access ODBC is available, `export_aries_accdb`.
+5. Treat generated outputs as review artifacts until row counts, warnings, and table-level behavior are reconciled.
 5. Treat Cowork output as a review memo, not the source of record.
 
 ## Driver Requirement Boundary

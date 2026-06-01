@@ -17,7 +17,7 @@ The working assumption is that the PHDWin database structure is stable across cl
 
 ## Source References
 
-This public copy is grounded in checked-in Tauris-authored notes and source-code-derived table behavior. Proprietary vendor manuals, help files, private spreadsheets, and internal reference-input documents are intentionally excluded.
+This public copy is grounded in checked-in Tauris-authored notes, cleared bundled reference artifacts, and source-code-derived table behavior. Proprietary vendor manuals, help files, private spreadsheets, and internal reference-input documents are intentionally excluded.
 
 Implementation references already in code:
 
