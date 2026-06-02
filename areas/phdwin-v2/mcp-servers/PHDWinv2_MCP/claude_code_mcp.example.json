@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "phdwin-v2": {
+      "type": "stdio",
+      "command": "py",
+      "args": [
+        "-3.12-32",
+        "C:/Path/To/tauris-skills/areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/scripts/phdwin_mcp_server.py"
+      ],
+      "env": {
+        "PHDWIN_ODBC_DRIVER": "SoftVelocity Topspeed driver Read-Only (*.tps)"
+      }
+    }
+  }
+}

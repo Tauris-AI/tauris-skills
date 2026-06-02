@@ -161,6 +161,14 @@ To also delete generated review SQLite databases:
 C:\Dev\tauris-skills\areas\phdwin-v2\mcp-servers\PHDWinv2_MCP\restart_cowork_clean.bat /DELETE_REVIEW_DB
 ```
 
+## Claude Code MCP Config
+
+Claude Code uses its own MCP configuration. The Cowork config does not automatically make this server available in Claude Code.
+
+Use `claude_code_mcp.example.json` as a project `.mcp.json` template or as the source for a `claude mcp add-json` command. Update the script path to match the local install location before using it.
+
+The PHDWin native extraction example uses `py -3.12-32` because the SoftVelocity TopSpeed ODBC driver is typically 32-bit.
+
 ## 4. First Cowork Prompt
 
 ```text
