@@ -217,6 +217,15 @@ def _to_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(str(value))
+    except (TypeError, ValueError):
+        return default
+
+
 def _lease_id(row: dict[str, Any]) -> int:
     return _to_int(_row_get(row, "LSE_ID", "LEASE_ID"))
 
@@ -323,12 +332,25 @@ def _append_product_name(expression: str, row: dict[str, Any], product_names: di
     return expression + f"; PRODUCT_NAME={name}", False
 
 
+def _has_nonzero_forecast(row: dict[str, Any]) -> bool:
+    """Return True when a forecast row has meaningful numeric data."""
+    by_upper = {str(k).upper(): v for k, v in row.items()}
+    segment_prefixes = ("Q_BEG$", "Q_END$", "DECLINE$", "N_FACTOR$", "SEGMENTDATE$", "DECLMIN$")
+    scalar_fields = {"Q", "QI", "RATE", "DI", "DECLINE", "B", "EXPONENT"}
+    for key, value in by_upper.items():
+        if any(key.startswith(prefix) for prefix in segment_prefixes) or key in scalar_fields:
+            if _to_float(value) != 0.0:
+                return True
+    return False
+
+
 def _build_forecast_review_rows(
     forecast_rows: list[dict[str, Any]],
     selected_lease_ids: set[int] | None,
     product_names: dict[int, str],
 ) -> tuple[list[dict[str, Any]], int]:
     scoped_rows = _filter_rows_by_lease(forecast_rows, selected_lease_ids)
+    scoped_rows = [row for row in scoped_rows if _has_nonzero_forecast(row)]
     result: list[dict[str, Any]] = []
     unmatched_product_code_count = 0
     for sequence, row in enumerate(sorted(scoped_rows, key=_forecast_sort_key), start=1):
