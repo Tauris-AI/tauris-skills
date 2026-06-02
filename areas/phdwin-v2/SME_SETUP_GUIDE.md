@@ -6,21 +6,36 @@ Lets Claude Cowork inspect PHDWin v2 source files, build SQLite/CSV review artif
 
 Complete these once per machine.
 
-1. Python 3.10 or newer:
+1. Python 3.10 or newer.
+
+For native PHDWin `.phd` / `.mod` extraction, use **32-bit Python 3.12** because the SoftVelocity TopSpeed ODBC driver is typically 32-bit. A 64-bit Python process cannot see or load the 32-bit ODBC driver.
 
 ```cmd
-python --version
+py --list
+py -3.12-32 --version
 ```
 
 2. Python packages:
 
 ```cmd
-pip install -r C:\Dev\tauris-skills\areas\phdwin-v2\mcp-servers\PHDWinv2_MCP\requirements.txt
+py -3.12-32 -m pip install -r C:\Dev\tauris-skills\areas\phdwin-v2\mcp-servers\PHDWinv2_MCP\requirements.txt
 ```
 
 3. SoftVelocity Clarion / TopSpeed ODBC driver for native `.phd` / `.mod` extraction.
 
 The driver is only needed for native extraction. If you already have an exported SQLite review database, you do not need the driver for query/review work.
+
+Confirm the 32-bit Python environment can see the driver:
+
+```cmd
+py -3.12-32 -c "import pyodbc; print('\n'.join(pyodbc.drivers()))"
+```
+
+Look for:
+
+```text
+SoftVelocity Topspeed driver Read-Only (*.tps)
+```
 
 ## Register With Claude Cowork
 
@@ -36,11 +51,13 @@ Use Cowork settings, not `%APPDATA%\Claude`.
 areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.example.json
 ```
 
-6. Update the Python path if needed. To find it:
+For native PHDWin extraction with the 32-bit TopSpeed driver, use the driver-override example instead:
 
-```cmd
-where python
+```text
+areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.with_driver_override.example.json
 ```
+
+6. Update the Python version flag or driver name if needed based on `py --list` and `pyodbc.drivers()`.
 
 7. Fully restart Cowork.
 
@@ -78,7 +95,7 @@ Use the PHDWin v2 area. Run the PHDWin-to-Aries workflow against this source, ex
 
 ## Troubleshooting
 
-- Driver missing: install the 32-bit SoftVelocity Clarion / TopSpeed ODBC driver for native extraction.
+- Driver missing: install the 32-bit SoftVelocity Clarion / TopSpeed ODBC driver for native extraction, then run Cowork with `py -3.12-32`.
 - SQLite already exists: skip the driver and use SQLite review tools.
 - Cowork server not visible: restart Cowork fully after editing config.
 - Locked files: close active Cowork sessions or use the included restart script.
