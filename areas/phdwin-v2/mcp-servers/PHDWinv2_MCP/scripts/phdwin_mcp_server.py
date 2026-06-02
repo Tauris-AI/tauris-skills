@@ -23,7 +23,11 @@ from common import (
     validate_dataset_dir,
 )
 from export_sqlite import sqlite_table_name
-from aries_export import export_aries
+from aries_export import (
+    read_aries_sqlite_tables,
+    write_access_database,
+    write_csv_tables,
+)
 from csv_export import export_sqlite_tables_to_csv
 
 try:
@@ -719,16 +723,50 @@ def export_sqlite(
 
 
 @mcp.tool
-def export_aries_csv(
-    sqlite_path: str,
-    output_dir: str,
-    lease_ids: list[int] | None = None,
+def convert_to_aries_sqlite(
+    phdwin_sqlite_path: str,
+    aries_sqlite_path: str,
+    batch_size: int = 50,
 ) -> dict[str, Any]:
-    """Build Aries-named CSV review tables from a PHDWin SQLite export."""
-    source = _path(sqlite_path)
+    """Convert PHDWin SQLite to Aries SQLite in a subprocess with batched leases."""
+    import subprocess
+    import sys
+
+    source = _path(phdwin_sqlite_path)
+    target = _path(aries_sqlite_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    script = Path(__file__).resolve().parent / "aries_export.py"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            str(source),
+            str(target),
+            "--output-sqlite",
+            "--batch-size",
+            str(batch_size),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Aries conversion failed:\n{proc.stderr}")
+    try:
+        return json.loads(proc.stdout)
+    except Exception:
+        return {"ariesSqlitePath": str(target), "stdout": proc.stdout}
+
+
+@mcp.tool
+def export_aries_to_csv(
+    aries_sqlite_path: str,
+    output_dir: str,
+) -> dict[str, Any]:
+    """Read Aries SQLite and write one CSV per Aries table."""
+    tables = read_aries_sqlite_tables(_path(aries_sqlite_path))
     target = _path(output_dir)
-    result = export_aries(source, target, lease_ids=lease_ids)
-    return result.to_dict()
+    write_csv_tables(tables, target, append=False)
+    return {"csvDir": str(target), "tableCounts": {name: len(rows) for name, rows in tables.items()}}
 
 
 @mcp.tool
@@ -753,31 +791,25 @@ def export_table_csvs(
 
 
 @mcp.tool
-def export_aries_accdb(
-    sqlite_path: str,
+def export_aries_to_accdb(
+    aries_sqlite_path: str,
     output_accdb_path: str,
-    output_dir: str | None = None,
     template_accdb_path: str | None = None,
-    lease_ids: list[int] | None = None,
 ) -> dict[str, Any]:
-    """Build Aries CSV tables and write an Aries .accdb from the packaged template.
-
-    Requires Windows Python with pyodbc and the Microsoft Access ODBC driver.
-    CSV output is always produced; .accdb output uses the included
-    reference/templates/Aries_Template.accdb unless template_accdb_path is supplied.
-    """
-    source = _path(sqlite_path)
+    """Read Aries SQLite and write an Aries .accdb. Requires Access ODBC."""
     accdb = _path(output_accdb_path)
-    target_dir = _path(output_dir) if output_dir else accdb.with_suffix("")
-    template = _path(template_accdb_path) if template_accdb_path else None
-    result = export_aries(
-        source,
-        target_dir,
-        template_path=template,
-        accdb_path=accdb,
-        lease_ids=lease_ids,
+    template = (
+        _path(template_accdb_path)
+        if template_accdb_path
+        else Path(__file__).resolve().parents[1] / "reference" / "templates" / "Aries_Template.accdb"
     )
-    return result.to_dict()
+    tables = read_aries_sqlite_tables(_path(aries_sqlite_path))
+    warnings = write_access_database(tables, template, accdb)
+    return {
+        "accdbPath": str(accdb),
+        "tableCounts": {name: len(rows) for name, rows in tables.items()},
+        "warnings": warnings,
+    }
 
 
 @mcp.resource("phdwin://aries-conversion-map")
@@ -812,8 +844,9 @@ def aries_conversion_map() -> str:
                 "conversion_profile",
                 "export_sqlite to create a stable derived review database",
                 "export_table_csvs when users want one CSV per extracted PHDWin table",
-                "export_aries_csv for Aries-named review tables",
-                "export_aries_accdb on Windows when pyodbc and the Access ODBC driver are installed",
+                "convert_to_aries_sqlite for batched Aries conversion",
+                "export_aries_to_csv for Aries-named review tables from Aries SQLite",
+                "export_aries_to_accdb on Windows when pyodbc and the Access ODBC driver are installed",
                 "use run_select_query against SQLite for deeper QA",
             ],
         },

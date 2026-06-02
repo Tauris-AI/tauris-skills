@@ -112,7 +112,7 @@ Ask Cowork to inspect these before any conversion run:
 1. Use native ODBC only long enough to inspect and export.
 2. Export selected PHDWin tables to SQLite.
 3. Use SQLite for deeper Cowork analysis.
-4. Generate review artifacts from SQLite with `export_aries_csv` or, when Access ODBC is available, `export_aries_accdb`.
+4. Convert PHDWin SQLite to Aries SQLite with `convert_to_aries_sqlite`, then export CSV or Access artifacts with `export_aries_to_csv` or `export_aries_to_accdb`.
 5. Treat generated outputs as review artifacts until row counts, warnings, and table-level behavior are reconciled.
 5. Treat Cowork output as a review memo, not the source of record.
 

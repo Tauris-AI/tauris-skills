@@ -29,8 +29,9 @@ Primary tools for the conversion workflow:
 - `conversion_profile`
 - `export_sqlite`
 - `export_table_csvs`
-- `export_aries_csv`
-- `export_aries_accdb`
+- `convert_to_aries_sqlite`
+- `export_aries_to_csv`
+- `export_aries_to_accdb`
 - `run_select_query`
 
 Primary MCP resources:
@@ -73,8 +74,9 @@ PHDWin .phz / .phd + .mod
   -> extract_phz if packaged
   -> export_sqlite through one serialized Clarion / TopSpeed ODBC read
   -> conversion_readiness and conversion_profile against SQLite
-  -> export_aries_csv for Aries-named review tables
-  -> optional export_aries_accdb using the packaged Aries template
+  -> convert_to_aries_sqlite for batched Aries conversion
+  -> export_aries_to_csv for Aries-named review tables
+  -> optional export_aries_to_accdb using the packaged Aries template
 ```
 
 Once SQLite exists, do deeper analysis from SQLite rather than repeatedly querying native PHDWin through the Clarion driver.

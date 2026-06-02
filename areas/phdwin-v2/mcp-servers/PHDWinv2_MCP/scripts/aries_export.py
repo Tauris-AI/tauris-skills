@@ -165,6 +165,24 @@ def read_table(conn: sqlite3.Connection, table: str) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def read_table_filtered(
+    conn: sqlite3.Connection,
+    table: str,
+    lease_ids: list[int] | None,
+) -> list[dict[str, Any]]:
+    if not table_exists(conn, table):
+        return []
+    if not lease_ids:
+        rows = conn.execute(f'SELECT * FROM "{table}"').fetchall()
+    else:
+        placeholders = ",".join("?" for _ in lease_ids)
+        rows = conn.execute(
+            f'SELECT * FROM "{table}" WHERE LSE_ID IN ({placeholders})',
+            lease_ids,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def indexed(rows: Iterable[dict[str, Any]], key: str) -> dict[int, dict[str, Any]]:
     result: dict[int, dict[str, Any]] = {}
     for row in rows:
@@ -260,17 +278,17 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         list_rows = read_table(conn, "PHD_LIST")
         classes = read_table(conn, "PHD_CLASS")
         categories = read_table(conn, "PHD_CATEGORY")
-        monhist = read_table(conn, "PHD_MONHIST")
-        daily = read_table(conn, "PHD_DAILY")
+        monhist = read_table_filtered(conn, "PHD_MONHIST", lease_ids)
+        daily = read_table_filtered(conn, "PHD_DAILY", lease_ids)
         economic_source_tables = {
             "PHD_PRODUCTNAMES": product_names,
-            "PHD_FORCAST": read_table(conn, "PHD_FORCAST"),
-            "PHD_LSESEGMENT": read_table(conn, "PHD_LSESEGMENT"),
-            "PHD_LSEPRODVAL": read_table(conn, "PHD_LSEPRODVAL"),
-            "PHD_ECON": read_table(conn, "PHD_ECON"),
-            "PHD_INVEST": read_table(conn, "PHD_INVEST"),
+            "PHD_FORCAST": read_table_filtered(conn, "PHD_FORCAST", lease_ids),
+            "PHD_LSESEGMENT": read_table_filtered(conn, "PHD_LSESEGMENT", lease_ids),
+            "PHD_LSEPRODVAL": read_table_filtered(conn, "PHD_LSEPRODVAL", lease_ids),
+            "PHD_ECON": read_table_filtered(conn, "PHD_ECON", lease_ids),
+            "PHD_INVEST": read_table_filtered(conn, "PHD_INVEST", lease_ids),
             "PHD_INVESTDESCR": read_table(conn, "PHD_INVESTDESCR"),
-            "PHD_CUMVOL": read_table(conn, "PHD_CUMVOL"),
+            "PHD_CUMVOL": read_table_filtered(conn, "PHD_CUMVOL", lease_ids),
             "MOD_SCEN": read_table(conn, "MOD_SCEN"),
             "MOD_TEMPLATE": read_table(conn, "MOD_TEMPLATE"),
         }
@@ -575,17 +593,129 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
     return tables, warnings, {"acEconomic": economic_result.diagnostics}
 
 
-def write_csv_tables(tables: dict[str, list[dict[str, Any]]], csv_dir: Path) -> None:
+PER_LEASE_TABLES = {
+    "AC_PROPERTY",
+    "AC_PRODUCT",
+    "AC_TEST",
+    "AC_DAILY",
+    "AC_ECONOMIC",
+    "AC_OWNER",
+    "GROUPTEST",
+    "PROJLIST",
+}
+GLOBAL_TABLES = {
+    "PROJECT",
+    "AC_SCENARIO",
+    "AC_SETUPDATA",
+    "SORTFILTERS",
+    "SelFilters",
+    "ARLOOKUP",
+    "AR_SIDEFILE",
+}
+
+
+def write_csv_tables(tables: dict[str, list[dict[str, Any]]], csv_dir: Path, append: bool = False) -> None:
     csv_dir.mkdir(parents=True, exist_ok=True)
     for table_name in EXPORT_TABLE_ORDER:
         rows = tables.get(table_name, [])
-        columns = sorted({column for row in rows for column in row.keys()}, key=str.upper)
+        is_per_lease = table_name in PER_LEASE_TABLES
         path = csv_dir / f"{table_name}.csv"
+        if append and is_per_lease and path.exists():
+            with path.open("r", newline="", encoding="utf-8") as handle:
+                columns = next(csv.reader(handle), [])
+            with path.open("a", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=columns)
+                for row in rows:
+                    writer.writerow({column: row.get(column, "") for column in columns})
+            continue
+        if not rows and append and not is_per_lease:
+            continue
+        columns = sorted({column for row in rows for column in row.keys()}, key=str.upper)
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=columns)
             writer.writeheader()
             for row in rows:
                 writer.writerow({column: row.get(column, "") for column in columns})
+
+
+def get_all_lease_ids(source_sqlite: Path) -> list[int]:
+    with open_sqlite(source_sqlite) as conn:
+        rows = conn.execute(
+            'SELECT LSE_ID FROM "PHD_MAINLSE" ORDER BY CAST(LSE_ID AS INTEGER)'
+        ).fetchall()
+    return [int(row[0]) for row in rows if row[0] is not None]
+
+
+def write_aries_sqlite_tables(
+    tables: dict[str, list[dict[str, Any]]],
+    aries_sqlite: Path,
+    append: bool = False,
+) -> None:
+    aries_sqlite.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(aries_sqlite) as conn:
+        for table_name in EXPORT_TABLE_ORDER:
+            rows = tables.get(table_name, [])
+            is_per_lease = table_name in PER_LEASE_TABLES
+            if not rows:
+                if not append or not is_per_lease:
+                    conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+                continue
+            columns = sorted({column for row in rows for column in row.keys()}, key=str.upper)
+            if append and is_per_lease:
+                col_defs = ", ".join(f'"{column}" TEXT' for column in columns)
+                conn.execute(f'CREATE TABLE IF NOT EXISTS "{table_name}" ({col_defs})')
+                existing = {
+                    row[1]
+                    for row in conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+                }
+                for column in columns:
+                    if column not in existing:
+                        conn.execute(f'ALTER TABLE "{table_name}" ADD COLUMN "{column}" TEXT')
+            else:
+                conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+                col_defs = ", ".join(f'"{column}" TEXT' for column in columns)
+                conn.execute(f'CREATE TABLE "{table_name}" ({col_defs})')
+            placeholders = ", ".join("?" for _ in columns)
+            conn.executemany(
+                f'INSERT INTO "{table_name}" VALUES ({placeholders})',
+                [[str(row.get(column, "") or "") for column in columns] for row in rows],
+            )
+        conn.commit()
+
+
+def export_aries_full_to_sqlite(source_sqlite: Path, aries_sqlite: Path, batch_size: int = 50) -> dict[str, Any]:
+    all_ids = get_all_lease_ids(source_sqlite)
+    all_warnings: list[str] = []
+    table_counts: dict[str, int] = {}
+    for batch_start in range(0, len(all_ids), batch_size):
+        batch_ids = all_ids[batch_start: batch_start + batch_size]
+        tables, warnings, _ = build_aries_tables(source_sqlite, lease_ids=batch_ids)
+        all_warnings.extend(warnings)
+        write_aries_sqlite_tables(tables, aries_sqlite, append=batch_start > 0)
+        for name, rows in tables.items():
+            if name in PER_LEASE_TABLES:
+                table_counts[name] = table_counts.get(name, 0) + len(rows)
+            else:
+                table_counts[name] = len(rows)
+    return {
+        "ariesSqlitePath": str(aries_sqlite),
+        "totalLeases": len(all_ids),
+        "tableCounts": table_counts,
+        "warnings": all_warnings,
+    }
+
+
+def read_aries_sqlite_tables(aries_sqlite: Path) -> dict[str, list[dict[str, Any]]]:
+    tables: dict[str, list[dict[str, Any]]] = {}
+    with sqlite3.connect(aries_sqlite) as conn:
+        conn.row_factory = sqlite3.Row
+        for table_name in EXPORT_TABLE_ORDER:
+            try:
+                rows = conn.execute(f'SELECT * FROM "{table_name}"').fetchall()
+                tables[table_name] = [dict(row) for row in rows]
+            except Exception:
+                tables[table_name] = []
+    return tables
 
 
 def access_columns(cursor: Any, table_name: str) -> list[str]:
@@ -702,17 +832,40 @@ def export_aries(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build Aries CSV/ACCDB review artifacts from a PHDWin SQLite export.")
     parser.add_argument("source_sqlite", help="SQLite database exported by the PHDWin-to-Aries MCP server")
-    parser.add_argument("output_dir", help="Output directory for Aries CSV files and summary JSON")
+    parser.add_argument("output", help="Output directory, Aries SQLite path, or Aries ACCDB path depending on flags")
+    parser.add_argument("--output-sqlite", action="store_true", help="Write batched Aries tables to a SQLite database.")
+    parser.add_argument("--batch-size", type=int, default=50, help="Lease batch size for --output-sqlite.")
     parser.add_argument("--template", help="Aries_Template.accdb path. Defaults to packaged template.")
-    parser.add_argument("--accdb", help="Optional output .accdb path. Requires Windows ACE Access ODBC driver and pyodbc.")
+    parser.add_argument(
+        "--accdb",
+        nargs="?",
+        const="__OUTPUT__",
+        help="Optional output .accdb path. If no path is supplied, the output positional path is used.",
+    )
     parser.add_argument("--lease-id", action="append", type=int, default=[], help="Optional lease id filter. Repeat for multiple leases.")
     args = parser.parse_args()
+    output = Path(args.output)
+
+    if args.output_sqlite or output.suffix.lower() in {".sqlite", ".db"}:
+        result = export_aries_full_to_sqlite(
+            Path(args.source_sqlite),
+            output,
+            batch_size=args.batch_size,
+        )
+        print(json.dumps(result, indent=2))
+        return 0
+
+    accdb_path: Path | None = None
+    output_dir = output
+    if args.accdb:
+        accdb_path = output if args.accdb == "__OUTPUT__" else Path(args.accdb)
+        output_dir = accdb_path.with_suffix("")
 
     result = export_aries(
         Path(args.source_sqlite),
-        Path(args.output_dir),
+        output_dir,
         template_path=Path(args.template) if args.template else None,
-        accdb_path=Path(args.accdb) if args.accdb else None,
+        accdb_path=accdb_path,
         lease_ids=args.lease_id or None,
     )
     print(json.dumps(result.to_dict(), indent=2))
