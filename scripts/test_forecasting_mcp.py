@@ -100,7 +100,10 @@ def test_sample_plot_renderer_returns_svg() -> None:
     svg = render_svg("SYNTH TEST PLOT", rows, profile, recommendation, config=config)
     assert svg.startswith("<svg")
     assert "SYNTH TEST PLOT" in svg
-    assert "straight projection guide" in svg
+    assert "Arps hyp-to-exp" in svg
+    assert "GOR" in svg
+    assert "WOR" in svg
+    assert "stroke-dasharray=\"10 6\"" in svg
 
 
 def test_industry_alignment_validation_avoids_compliance_claim() -> None:

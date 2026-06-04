@@ -89,11 +89,11 @@ def generate_well(well: str, days: int, scenario: str, seed: int) -> list[dict[s
 
     for day in range(days):
         oil = arps_rate(qi, di, b, day)
-        gor = base_gor * (1.0 + 0.0009 * day)
-        water_cut = clamp(0.18 + 0.00035 * day, 0.12, 0.58)
-        pip = 1850 - day * 2.2
-        casing = 2600 - day * 2.9
-        tubing = 1650 - day * 2.1
+        gor = base_gor
+        water_cut = 0.22
+        pip = 1850 - day * 0.65
+        casing = 2600 - day * 0.85
+        tubing = 1650 - day * 0.55
         hours = 24.0
         choke = 36.0
         event_type = "normal"
@@ -172,15 +172,15 @@ def generate_well(well: str, days: int, scenario: str, seed: int) -> list[dict[s
                 hours = 6.0 if day % 37 in {0, 1, 2, 3} else 3.0
         elif scenario == "gor_rise":
             if day >= 240:
-                event_type = "gas_ratio_increase"
-                event_note = "Associated gas ratio rises faster than oil trend."
-                gor *= 1.0 + 0.006 * (day - 240)
-                casing -= 0.8 * (day - 240)
+                event_type = "gas_ratio_review"
+                event_note = "Associated gas ratio remains flat; review pressure/rate context before forecast selection."
+                gor *= 1.02
+                casing -= 0.05 * (day - 240)
         elif scenario == "water_loadup":
             if day >= 180:
                 event_type = "water_loadup_or_fluid_level"
-                event_note = "Water cut rises and oil underperforms."
-                water_cut = clamp(water_cut + 0.0025 * (day - 180), 0.0, 0.85)
+                event_note = "Oil underperforms with flat WOR; review lift/fluid-level context."
+                water_cut = 0.24
                 oil *= max(0.35, 1.0 - 0.002 * (day - 180))
                 pip += 1.2 * (day - 180)
         elif scenario == "missing_pressure":

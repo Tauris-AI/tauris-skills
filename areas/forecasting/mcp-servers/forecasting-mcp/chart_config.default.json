@@ -13,10 +13,15 @@
     "plotWidth": 980,
     "plotHeight": 420,
     "forecastDays": 180,
+    "forecastYears": 30,
+    "axisStartMonthsBeforeFirstProduction": 12,
+    "axisSpanYears": 30,
     "minHistoryDays": 60,
     "logY": true,
     "logSpanDecades": 2.8,
-    "centerForecastHandoff": true
+    "centerForecastHandoff": true,
+    "fullDataView": true,
+    "showSyntheticEvents": false
   },
   "series": {
     "oil": {
