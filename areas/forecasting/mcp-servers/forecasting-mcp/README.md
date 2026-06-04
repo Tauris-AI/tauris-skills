@@ -12,6 +12,7 @@ This first version does not generate final forecasts. It helps decide which fore
 - `recommend_methods`: recommend forecast methods for one well profile.
 - `profile_and_recommend`: run profiling and method recommendation in one call.
 - `convert_decline_convention`: convert internal nominal decline values to commercial app entry values.
+- `validate_industry_alignment`: check whether a well profile/recommendation is directionally aligned with limited-data petroleum engineering DCA practice.
 
 Profiles include `fitOriginCandidates` so Cowork can detect cases where the forecast should start after first production, a recompletion, a stimulation, cleanup, or another operating change instead of blindly fitting the full history.
 

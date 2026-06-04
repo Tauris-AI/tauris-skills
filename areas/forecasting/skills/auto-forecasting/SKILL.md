@@ -75,6 +75,10 @@ When reservoir-engineering inputs are missing, do not invent:
 
 Use production and surface/downhole pressure signals to write better method logic, fit-window choices, and QC explanations. Do not present the result as a physics-complete reservoir calculation.
 
+## Industry Alignment Checks
+
+Use `references/industry-alignment-checks.md` when the user asks whether the workflow is directionally consistent with petroleum engineering practice. Do not claim formal compliance. The goal is to stay aligned with limited-data empirical DCA review by checking decline convention, forecast origin, pressure/rate consistency, method eligibility, history-window sensitivity, and visual sanity.
+
 ## Decline Convention Export
 
 Keep internal fitting math separate from commercial app entry values.
@@ -106,6 +110,12 @@ profile_and_recommend(csv_path)
 ```
 
 Use `pressureProjectionDiagnostics` and `fitOriginCandidates` from its output to decide which ArpsForecasting methods and fit windows should be applied later.
+
+Alignment tool:
+
+```text
+validate_industry_alignment(profile, recommendation)
+```
 
 Convention tool:
 

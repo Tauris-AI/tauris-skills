@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "areas/forecasting/mcp-servers/forecasting-mcp"))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from forecasting_mcp import convert_decline_convention, profile_and_recommend  # noqa: E402
+from forecasting_mcp import convert_decline_convention, profile_and_recommend, validate_industry_alignment  # noqa: E402
 from generate_forecasting_synthetic_data import FIELDNAMES, generate_well  # noqa: E402
 from generate_forecasting_sample_plots import load_chart_config, render_svg  # noqa: E402
 
@@ -52,10 +52,13 @@ def test_profile_and_recommend_detects_pressure_and_multiple_origins() -> None:
         diagnostics = profile["pressureProjectionDiagnostics"]
         assert any(item["interpretation"] == "drawdown_or_recompletion_response" for item in diagnostics)
         recommendation = result["recommendations"][0]
+        alignment = result["industryAlignments"][0]
         assert recommendation["qc"] == "yellow"
         assert recommendation["recommendedMethod"] == "pressure_aware_review_then_arps_hyp_to_exp"
         assert any("drawdown change" in reason for reason in recommendation["reasons"])
         assert any("limited-data" in reason for reason in recommendation["reasons"])
+        assert alignment["notComplianceClaim"] is True
+        assert alignment["overall"] == "aligned_with_review_flags"
 
 
 def test_decline_convention_conversion_uses_effective_annual_values() -> None:
@@ -100,11 +103,32 @@ def test_sample_plot_renderer_returns_svg() -> None:
     assert "straight projection guide" in svg
 
 
+def test_industry_alignment_validation_avoids_compliance_claim() -> None:
+    profile = {
+        "well": "Alignment Well",
+        "rowCount": 400,
+        "cadence": {"cadence": "daily"},
+        "usablePressure": ["casing_pressure"],
+        "fitOriginCandidates": [{"date": "2024-01-01", "type": "first_positive_production"}],
+        "pressureProjectionDiagnostics": [{"interpretation": "depletion_supported"}],
+    }
+    recommendation = {
+        "qc": "green",
+        "eligibleMethods": [{"method": "pressure_aware_hybrid_residual"}],
+        "notEligibleMethods": [],
+    }
+    result = validate_industry_alignment(profile, recommendation)
+    assert result["notComplianceClaim"] is True
+    assert result["alignmentProfile"] == "industry_limited_data_dca"
+    assert "not a formal compliance claim" in result["statement"]
+
+
 def main() -> int:
     test_profile_and_recommend_detects_pressure_and_multiple_origins()
     test_decline_convention_conversion_uses_effective_annual_values()
     test_synthetic_generator_creates_daily_unconventional_rows()
     test_sample_plot_renderer_returns_svg()
+    test_industry_alignment_validation_avoids_compliance_claim()
     print("Forecasting MCP tests passed.")
     return 0
 

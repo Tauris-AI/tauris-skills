@@ -688,16 +688,130 @@ def convert_decline_convention(
 
 
 @mcp.tool()
+def validate_industry_alignment(profile: dict[str, Any], recommendation: dict[str, Any]) -> dict[str, Any]:
+    """Check limited-data DCA alignment without claiming formal compliance."""
+    checks: list[dict[str, Any]] = []
+    warnings: list[str] = []
+
+    def add_check(name: str, status: str, reason: str) -> None:
+        checks.append({"check": name, "status": status, "reason": reason})
+
+    add_check(
+        "positioning",
+        "pass",
+        "Workflow is framed as limited-data empirical DCA review, not formal compliance or reservoir simulation.",
+    )
+
+    if profile.get("fitOriginCandidates"):
+        status = "review" if len(profile["fitOriginCandidates"]) > 1 else "pass"
+        add_check(
+            "forecast_origin",
+            status,
+            f"{len(profile['fitOriginCandidates'])} candidate forecast origin(s) detected.",
+        )
+        if status == "review":
+            warnings.append("Multiple forecast origins or regime changes should be tested before selecting a champion curve.")
+    else:
+        add_check("forecast_origin", "warn", "No forecast origin candidate was detected.")
+        warnings.append("Forecast origin is not explicit.")
+
+    diagnostics = profile.get("pressureProjectionDiagnostics", [])
+    if diagnostics:
+        interpretations = {item["interpretation"] for item in diagnostics}
+        pressure_status = "pass"
+        if interpretations & {
+            "possible_constraint_or_operational_issue",
+            "drawdown_or_recompletion_response",
+            "hidden_depletion_risk",
+            "operationally_unstable",
+        }:
+            pressure_status = "review"
+            warnings.append("Pressure/rate diagnostics indicate possible non-depletion behavior or projection risk.")
+        add_check(
+            "pressure_rate_consistency",
+            pressure_status,
+            "Pressure/rate diagnostics available: " + ", ".join(sorted(interpretations)),
+        )
+    else:
+        add_check("pressure_rate_consistency", "limited", "No usable pressure diagnostics; pressure-aware methods should be disabled.")
+
+    eligible = {item["method"] for item in recommendation.get("eligibleMethods", [])}
+    not_eligible = {item["method"] for item in recommendation.get("notEligibleMethods", [])}
+    if "pressure_aware_hybrid_residual" in eligible and profile.get("usablePressure"):
+        add_check("method_eligibility", "pass", "Pressure-aware method is eligible only because usable pressure exists.")
+    elif "pressure_aware_hybrid_residual" in not_eligible and not profile.get("usablePressure"):
+        add_check("method_eligibility", "pass", "Pressure-aware method is disabled because usable pressure is unavailable.")
+    else:
+        add_check("method_eligibility", "review", "Method eligibility should be reviewed against cadence, history length, and pressure coverage.")
+
+    cadence = profile.get("cadence", {}).get("cadence")
+    row_count = int(profile.get("rowCount") or 0)
+    if row_count >= 360:
+        sensitivity_status = "pass"
+        reason = "Enough history exists for 30/90/180/360-day history-window sensitivity checks."
+    elif row_count >= 180:
+        sensitivity_status = "limited"
+        reason = "Enough history exists for 30/90/180-day checks, but not a full 360-day window."
+    else:
+        sensitivity_status = "warn"
+        reason = "History is short for robust history-window sensitivity checks."
+        warnings.append("Short history limits DCA confidence.")
+    add_check("history_window_sensitivity", sensitivity_status, reason)
+
+    if cadence == "monthly":
+        add_check("cadence_handling", "pass", "Monthly data is routed toward simpler reserves-style decline fitting.")
+    elif cadence == "daily":
+        add_check("cadence_handling", "pass", "Daily data can support fit-window scanning and pressure diagnostics when coverage allows.")
+    else:
+        add_check("cadence_handling", "review", f"Cadence is {cadence}; forecast method choice should be reviewed.")
+
+    add_check(
+        "decline_convention",
+        "pass",
+        "Use convert_decline_convention before exporting nominal fit parameters to ARIES, ComboCurve, PHDWin, Mosaic, or similar tools.",
+    )
+    add_check(
+        "visual_sanity",
+        "pass",
+        "Use the engineering log plot reference image for final chart behavior and visual review.",
+    )
+
+    overall = "aligned_limited_data_dca"
+    if any(item["status"] in {"warn", "review"} for item in checks):
+        overall = "aligned_with_review_flags"
+    if recommendation.get("qc") == "red":
+        overall = "not_reliable_without_human_review"
+
+    return {
+        "well": profile.get("well"),
+        "alignmentProfile": "industry_limited_data_dca",
+        "overall": overall,
+        "notComplianceClaim": True,
+        "checks": checks,
+        "warnings": warnings,
+        "statement": (
+            "This forecast workflow is directionally aligned with limited-data empirical DCA review, "
+            "but it is not a formal compliance claim, reservoir-simulation benchmark, or full reservoir-engineering calculation."
+        ),
+    }
+
+
+@mcp.tool()
 def profile_and_recommend(csv_path: str, limit_wells: int | None = None) -> dict[str, Any]:
     """Profile a CSV and recommend forecast method families for each well."""
     profiled = profile_csv(csv_path, limit_wells=limit_wells)
     recommendations = [_recommend_for_profile(profile) for profile in profiled["profiles"]]
+    alignments = [
+        validate_industry_alignment(profile, recommendation)
+        for profile, recommendation in zip(profiled["profiles"], recommendations)
+    ]
     qc_counts: dict[str, int] = defaultdict(int)
     for item in recommendations:
         qc_counts[item["qc"]] += 1
     return {
         **profiled,
         "recommendations": recommendations,
+        "industryAlignments": alignments,
         "qcCounts": dict(sorted(qc_counts.items())),
     }
 
