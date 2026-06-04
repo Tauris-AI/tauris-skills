@@ -155,16 +155,24 @@ def log_grid(log_y_min: float, log_y_max: float, left: int, width: int, top: int
     return "".join(lines)
 
 
-def x_grid(x_min: float, x_max: float, left: int, width: int, top: int, height: int) -> str:
+def x_grid(x_min: float, x_max: float, center_index: float, left: int, width: int, top: int, height: int) -> str:
     lines = []
     span = max(x_max - x_min, 1)
     step = 30 if span <= 240 else 90
-    first = math.ceil(x_min / step) * step
-    value = first
+    first_relative = math.ceil((x_min - center_index) / step) * step
+    value = center_index + first_relative
+    if abs(value - center_index) > 1e-6 and value > center_index:
+        value -= step
     while value <= x_max:
         x = left + ((value - x_min) / span) * width
-        lines.append(f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top + height}" stroke="#999" stroke-width="0.7" opacity="0.25" />')
-        lines.append(f'<text x="{x:.2f}" y="{top + height + 18}" text-anchor="middle" font-family="Arial" font-size="11" fill="#333">{int(value)}</text>')
+        relative = int(round(value - center_index))
+        is_zero = abs(relative) == 0
+        stroke = "#000" if is_zero else "#999"
+        stroke_width = "1.6" if is_zero else "0.7"
+        opacity = "0.85" if is_zero else "0.25"
+        label = "Time 0" if is_zero else f"{relative:+d}"
+        lines.append(f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top + height}" stroke="{stroke}" stroke-width="{stroke_width}" opacity="{opacity}" />')
+        lines.append(f'<text x="{x:.2f}" y="{top + height + 18}" text-anchor="middle" font-family="Arial" font-size="11" fill="#333">{label}</text>')
         value += step
     return "".join(lines)
 
@@ -280,7 +288,10 @@ def render_svg(
         center = point_xy(last_oil[0], last_oil[1], x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
         if center:
             cx, cy = center
-            center_marker = f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="6" fill="{guide_config["centerMarkerColor"]}" stroke="#fff" stroke-width="2" />'
+            center_marker = (
+                f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="6" fill="{guide_config["centerMarkerColor"]}" stroke="#fff" stroke-width="2" />'
+                f'<text x="{cx + 10:.2f}" y="{cy - 10:.2f}" font-family="Arial" font-size="12" font-weight="700" fill="#000">Time 0 / forecast start</text>'
+            )
 
     title = well.replace("&", "&amp;")
     interp = dominant_interpretation(profile)
@@ -294,7 +305,7 @@ def render_svg(
   <text x="40" y="78" font-family="Arial" font-size="12" fill="#555">{reason_text}</text>
   <rect x="{plot_left}" y="{plot_top}" width="{plot_width}" height="{plot_height}" fill="#fbfbfb" stroke="#111"/>
   {log_grid(log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)}
-  {x_grid(x_min, x_max, plot_left, plot_width, plot_top, plot_height)}
+  {x_grid(x_min, x_max, center_index, plot_left, plot_width, plot_top, plot_height)}
   {''.join(event_lines)}
   {''.join(origin_lines)}
   {''.join(fit_guides)}
