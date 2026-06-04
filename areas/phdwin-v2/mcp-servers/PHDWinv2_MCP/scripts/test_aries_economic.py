@@ -16,7 +16,7 @@ def test_scoped_forecast_count() -> None:
         {
             "PHD_PRODUCTNAMES": [{"PRODUCTCODE": "1", "DESCR": "Oil"}],
             "PHD_FORCAST": [
-                {"LSE_ID": "1", "PRODUCTCODE": "1"},
+                {"LSE_ID": "1", "PRODUCTCODE": "1", "QI": "100"},
                 {"LSE_ID": "2", "PRODUCTCODE": "2"},
             ],
             "PHD_ECON": [{"LSE_ID": "1", "OPCOST": "12.50"}],
@@ -72,9 +72,9 @@ def test_forecast_ordering() -> None:
     result = build_ac_economic_rows(
         {
             "PHD_FORCAST": [
-                {"LSE_ID": "2", "ARCSEQ": "2", "PRODUCTCODE": "1"},
-                {"LSE_ID": "1", "ARCSEQ": "2", "PRODUCTCODE": "1"},
-                {"LSE_ID": "1", "ARCSEQ": "1", "PRODUCTCODE": "2"},
+                {"LSE_ID": "2", "ARCSEQ": "2", "PRODUCTCODE": "1", "QI": "10"},
+                {"LSE_ID": "1", "ARCSEQ": "2", "PRODUCTCODE": "1", "QI": "20"},
+                {"LSE_ID": "1", "ARCSEQ": "1", "PRODUCTCODE": "2", "QI": "30"},
             ],
         },
     )
@@ -86,7 +86,7 @@ def test_forecast_ordering() -> None:
 def test_section_sequences_are_independent() -> None:
     result = build_ac_economic_rows(
         {
-            "PHD_FORCAST": [{"LSE_ID": "1", "ARCSEQ": "5", "PRODUCTCODE": "1"}],
+            "PHD_FORCAST": [{"LSE_ID": "1", "ARCSEQ": "5", "PRODUCTCODE": "1", "QI": "100"}],
             "PHD_ECON": [{"LSE_ID": "1", "SEQ": "7", "OPCOST": "10"}],
             "PHD_INVEST": [{"LSE_ID": "1", "SEQ": "9", "AMOUNT": "500"}],
             "PHD_LSESEGMENT": [{"LSE_ID": "1", "SEQ": "11", "QI": "100"}],
@@ -115,8 +115,8 @@ def test_rows_without_lease_id_are_skipped() -> None:
     result = build_ac_economic_rows(
         {
             "PHD_FORCAST": [
-                {"LSE_ID": "1", "ARCSEQ": "1"},
-                {"ARCSEQ": "2"},
+                {"LSE_ID": "1", "ARCSEQ": "1", "QI": "25"},
+                {"ARCSEQ": "2", "QI": "25"},
             ],
             "PHD_ECON": [{"OPCOST": "9"}],
         },
@@ -132,7 +132,7 @@ def test_unmatched_product_code_count() -> None:
     result = build_ac_economic_rows(
         {
             "PHD_PRODUCTNAMES": [{"PRODUCTCODE": "1", "DESCR": "Oil"}],
-            "PHD_FORCAST": [{"LSE_ID": "1", "PRODUCTCODE": "9"}],
+            "PHD_FORCAST": [{"LSE_ID": "1", "PRODUCTCODE": "9", "QI": "100"}],
             "PHD_LSESEGMENT": [{"LSE_ID": "1", "PRODUCTCODE": "8"}],
             "PHD_LSEPRODVAL": [{"LSE_ID": "1", "PRODUCTCODE": "7"}],
             "PHD_CUMVOL": [{"LSE_ID": "1", "PRODUCTCODE": "6"}],

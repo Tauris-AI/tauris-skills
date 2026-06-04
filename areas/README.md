@@ -5,6 +5,7 @@ This catalog groups the repo by petroleum workflow. Each area owns its skills, M
 ## Areas
 
 - `aries` - ARIES concepts, Access table contracts, and economic table review.
+- `forecasting` - production/pressure profiling, forecast origin selection, method eligibility, and auto-forecast QC.
 - `phdwin-v2` - read-only PHDWin v2 inspection, native extraction, review exports, and PHDWin-to-Aries conversion-readiness workflows.
 - `petroleum-economics` - general reserve and economics review workflows.
 

@@ -3,7 +3,7 @@
     "aries-mcp": {
       "command": "py",
       "args": [
-        "-3.14",
+        "-3.12",
         "C:/Dev/tauris-skills/areas/aries/mcp-servers/aries-mcp/aries_mcp.py"
       ]
     }

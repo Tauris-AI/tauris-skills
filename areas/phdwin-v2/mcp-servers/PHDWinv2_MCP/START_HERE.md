@@ -83,9 +83,9 @@ Tracking note: `663545`.
 Open Command Prompt and run each line separately:
 
 ```cmd
-py -3.14 --version
-py -3.14 -c "import pyodbc, fastmcp; print('pyodbc', pyodbc.version); print('fastmcp ok')"
-py -3.14 -c "import pyodbc; [print(d) for d in pyodbc.drivers()]"
+py -3.12-32 --version
+py -3.12-32 -c "import pyodbc, fastmcp; print('pyodbc', pyodbc.version); print('fastmcp ok')"
+py -3.12-32 -c "import pyodbc; [print(d) for d in pyodbc.drivers()]"
 ```
 
 You need the Clarion / TopSpeed ODBC driver to appear in the driver list. If it does not appear, the usual cause is a 32-bit / 64-bit mismatch — the Clarion driver is 32-bit but your default Python is 64-bit.
@@ -135,7 +135,7 @@ Merge this block from `cowork_config.example.json`:
     "phdwin-v2": {
       "command": "py",
       "args": [
-        "-3.14",
+        "-3.12-32",
         "C:/Dev/tauris-skills/areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/scripts/phdwin_mcp_server.py"
       ]
     }

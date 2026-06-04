@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "forecasting-mcp": {
+      "command": "py",
+      "args": [
+        "-3.12",
+        "C:/Dev/tauris-skills/areas/forecasting/mcp-servers/forecasting-mcp/forecasting_mcp.py"
+      ]
+    }
+  }
+}

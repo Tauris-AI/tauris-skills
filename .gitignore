@@ -34,6 +34,10 @@ areas/*/mcp-servers/*/data/review/**
 !areas/*/mcp-servers/*/data/extracted/.gitkeep
 !areas/*/mcp-servers/*/data/review/.gitkeep
 !areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/Aries_Template.accdb
+areas/forecasting/mcp-servers/forecasting-mcp/data/input/**
+areas/forecasting/mcp-servers/forecasting-mcp/data/output/**
+!areas/forecasting/mcp-servers/forecasting-mcp/data/input/.gitkeep
+!areas/forecasting/mcp-servers/forecasting-mcp/data/output/.gitkeep
 
 # Python/runtime noise
 __pycache__/

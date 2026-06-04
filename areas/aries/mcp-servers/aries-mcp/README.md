@@ -19,7 +19,7 @@ Python MCP server for Claude Cowork to inspect and maintain ARIES Access databas
 Install Python packages:
 
 ```cmd
-py -3.14 -m pip install fastmcp pyodbc
+py -3.12 -m pip install fastmcp pyodbc
 ```
 
 ## Cowork Config
@@ -32,7 +32,7 @@ Merge `cowork_config.example.json` into the Cowork developer MCP config.
     "aries-mcp": {
       "command": "py",
       "args": [
-        "-3.14",
+        "-3.12",
         "C:/Dev/tauris-skills/areas/aries/mcp-servers/aries-mcp/aries_mcp.py"
       ]
     }

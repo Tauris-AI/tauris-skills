@@ -7,12 +7,14 @@ This repository is intended to be the source of truth for curated domain skills 
 ## Structure
 
 - `areas/` contains each workflow area, including its skills, MCP servers, setup guide, references, and scripts.
+- `plugins/` contains tool-facing install adapters. These are thin wrappers around `areas/`; they should not duplicate durable domain content.
 - `.github/copilot-instructions.md` and `.github/prompts/` provide Copilot-facing adapters.
 - `docs/` contains curation guidance for keeping the skills accurate and safe.
 
 ## Areas
 
 - `areas/aries`: ARIES concepts, Access table contracts, economic table review, and ARIES skill setup.
+- `areas/forecasting`: production/pressure profiling, forecast origin selection, method eligibility, and auto-forecast QC.
 - `areas/phdwin-v2`: PHDWin v2 inspection, extraction, SQLite/CSV review exports, and PHDWin-to-Aries workflow support.
 - `areas/petroleum-economics`: repeatable review workflows for petroleum engineering economics.
 
@@ -20,12 +22,23 @@ This repository is intended to be the source of truth for curated domain skills 
 
 - `areas/aries/skills/aries-core`: ARIES concepts, module boundaries, and shared operating rules.
 - `areas/aries/skills/aries-ac-economic`: reading, validating, and eventually writing `AC_ECONOMIC` table lines.
+- `areas/forecasting/skills/auto-forecasting`: production/pressure data profiling, forecast origin selection, method eligibility, and limited-data QC.
 - `areas/phdwin-v2/skills/phdwin-v2-querying`: safe query patterns and schema navigation for PHDWin databases.
 - `areas/petroleum-economics/skills/petroleum-economics-review`: repeatable review workflows for petroleum engineering economics.
 
 ## MCP Servers
 
 - `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP`: read-only PHDWin v2 inspection, `.phz` extraction, table sampling, SQLite/CSV exports, PHDWin-to-Aries conversion-readiness review, and optional Aries Access export reference material.
+- `areas/forecasting/mcp-servers/forecasting-mcp`: production/pressure CSV profiling and per-well forecast method recommendation.
+
+## Claude Cowork Plugins
+
+- `plugins/claude-cowork/phdwin-v2`: Cowork MCP install guide for PHDWin v2 inspection and PHDWin-to-Aries review.
+- `plugins/claude-cowork/aries`: Cowork MCP install guide for ARIES Access inspection plus ARIES skill loading.
+- `plugins/claude-cowork/forecasting`: Cowork MCP install guide for production/pressure profiling and forecast method recommendation.
+- `plugins/claude-cowork/petroleum-economics`: Cowork prompt-only install guide for system-agnostic petroleum economics review.
+
+Keep plugin guides small. The canonical code, references, and skills stay under `areas/`.
 
 ## Safety Rules
 
