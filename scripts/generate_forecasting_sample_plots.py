@@ -77,6 +77,25 @@ def series_points(rows: list[dict[str, Any]], column: str) -> list[tuple[int, fl
     return points
 
 
+def fit_series_points(rows: list[dict[str, Any]], column: str) -> list[tuple[int, float]]:
+    excluded_events = {
+        "managed_choke_to_line_pressure",
+        "pump_failure_or_lift_issue",
+        "post_pump_repair_recovery",
+        "facility_downtime",
+        "shutin",
+        "restart_cleanup",
+    }
+    points: list[tuple[int, float]] = []
+    for index, row in enumerate(rows):
+        if row.get("Synthetic.EventType", "") in excluded_events:
+            continue
+        value = parse_float(row.get(column))
+        if value is not None and value >= 0:
+            points.append((index, value))
+    return points
+
+
 def log10_safe(value: float) -> float:
     return math.log10(max(value, 0.001))
 
@@ -99,10 +118,13 @@ def point_xy(
 ) -> tuple[float, float] | None:
     if value <= 0 or index < x_min or index > x_max:
         return None
+    log_value = log10_safe(value)
+    if log_value < log_y_min or log_value > log_y_max:
+        return None
     x_denom = max(x_max - x_min, 1e-9)
     y_denom = max(log_y_max - log_y_min, 1e-9)
     x = left + ((index - x_min) / x_denom) * width
-    y = top + height - ((log10_safe(value) - log_y_min) / y_denom) * height
+    y = top + height - ((log_value - log_y_min) / y_denom) * height
     return x, y
 
 
@@ -127,6 +149,85 @@ def path_for(
         x, y = xy
         commands.append(("M" if not commands else "L") + f"{x:.2f},{y:.2f}")
     return " ".join(commands)
+
+
+def ratio_series(
+    numerator: list[tuple[int, float]],
+    denominator: list[tuple[int, float]],
+    scale: float,
+) -> list[tuple[int, float]]:
+    denominator_by_index = {index: value for index, value in denominator if value > 0}
+    points = []
+    for index, value in numerator:
+        base = denominator_by_index.get(index)
+        if base and value > 0:
+            points.append((index, value / base * scale))
+    return points
+
+
+def merge_ratio_points(
+    history_points: list[tuple[int | float, float]],
+    forecast_points: list[tuple[int | float, float]],
+) -> list[tuple[int | float, float]]:
+    merged: dict[int | float, float] = {}
+    for index, value in history_points:
+        merged[index] = value
+    for index, value in forecast_points:
+        merged[index] = value
+    return sorted(merged.items())
+
+
+def ratio_axis_label(value: float) -> str:
+    if value >= 100:
+        return f"{value:.0f}"
+    if value >= 1:
+        return f"{value:g}"
+    return f"{value:.2g}"
+
+
+def synced_ratio_axis(
+    ratio_points: list[tuple[int | float, float]],
+    x_min: float,
+    x_max: float,
+    left_log_min: float,
+    left_log_max: float,
+    plot_left: int,
+    plot_width: int,
+    plot_top: int,
+    plot_height: int,
+) -> tuple[float, float, str]:
+    visible = [value for index, value in ratio_points if x_min <= index <= x_max and value > 0]
+    if not visible:
+        return 0.0, 1.0, ""
+    log_span = left_log_max - left_log_min
+    min_log = min(log10_safe(value) for value in visible)
+    max_log = max(log10_safe(value) for value in visible)
+    left_center = (left_log_min + left_log_max) / 2.0
+    ratio_center = (min_log + max_log) / 2.0
+    preferred_offset = round(ratio_center - left_center)
+    valid_offsets = [
+        offset
+        for offset in range(math.floor(max_log - left_log_max) - 1, math.ceil(min_log - left_log_min) + 2)
+        if left_log_min + offset <= min_log and left_log_max + offset >= max_log
+    ]
+    offset = min(valid_offsets, key=lambda item: abs(item - preferred_offset)) if valid_offsets else preferred_offset
+    ratio_log_min = left_log_min + offset
+    ratio_log_max = left_log_max + offset
+    axis_x = plot_left + plot_width
+    lines = [
+        f'<line x1="{axis_x}" y1="{plot_top}" x2="{axis_x}" y2="{plot_top + plot_height}" stroke="#555" stroke-width="0.8" />'
+    ]
+    for left_decade in range(math.ceil(left_log_min), math.floor(left_log_max) + 1):
+        y = plot_top + plot_height - ((left_decade - left_log_min) / max(left_log_max - left_log_min, 1e-9)) * plot_height
+        ratio_log = left_decade + offset
+        value = value_from_log(ratio_log)
+        lines.append(
+            f'<text x="{axis_x + 7}" y="{y + 4:.2f}" font-family="Arial" font-size="10" fill="#555">{ratio_axis_label(value)}</text>'
+        )
+    lines.append(
+        f'<text x="{axis_x + 42}" y="{plot_top + 12}" font-family="Arial" font-size="10" fill="#555">Ratio</text>'
+    )
+    return ratio_log_min, ratio_log_max, "".join(lines)
 
 
 def arps_hyp_to_exp_rate(qi: float, nominal_di_annual: float, b_factor: float, terminal_di_annual: float, years: float) -> float:
@@ -243,6 +344,37 @@ def arps_fit_svg_path(
     return fit, path_for(fit["points"], x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
 
 
+def arps_rate_from_fit(fit: dict[str, Any], origin_index: int, index: float) -> float:
+    years = (index - origin_index) / 365.25
+    return arps_hyp_to_exp_rate(
+        fit["qi"],
+        fit["nominalDiAnnual"],
+        fit["bFactor"],
+        fit["terminalDiAnnual"],
+        years,
+    )
+
+
+def arps_forecast_points(
+    fit: dict[str, Any] | None,
+    origin_index: int,
+    forecast_start_index: float,
+    x_max: float,
+    visual_terminal_rate: float,
+) -> list[tuple[float, float]]:
+    if not fit:
+        return []
+    points = []
+    end_index = int(max(x_max, forecast_start_index))
+    step = 15 if end_index - forecast_start_index <= 1200 else 30
+    for index in range(int(round(forecast_start_index)), end_index + 1, step):
+        rate = arps_rate_from_fit(fit, origin_index, float(index))
+        if rate <= visual_terminal_rate:
+            break
+        points.append((float(index), rate))
+    return points
+
+
 def _linear_fit(points: list[tuple[float, float]]) -> dict[str, float]:
     n = len(points)
     if n == 0:
@@ -325,15 +457,15 @@ def fit_ratio_profile(
 
 
 def ratio_derived_rate_path(
-    oil_fit: dict[str, Any] | None,
+    oil_points: list[tuple[float, float]],
     ratio_fit: dict[str, Any] | None,
     origin_index: int,
     visual_terminal_rate: float,
 ) -> list[tuple[float, float]]:
-    if not oil_fit or not ratio_fit:
+    if not oil_points or not ratio_fit:
         return []
     derived = []
-    for index, oil_rate in oil_fit["points"]:
+    for index, oil_rate in oil_points:
         years = (index - origin_index) / 365.25
         ratio = _eval_ratio_fit(ratio_fit, years)
         rate = oil_rate * ratio
@@ -383,12 +515,17 @@ def x_grid(x_min: float, x_max: float, center_index: float, left: int, width: in
         x = left + ((value - x_min) / span) * width
         relative = int(round(value - center_index))
         is_zero = abs(relative) == 0
-        stroke = "#000" if is_zero else "#999"
-        stroke_width = "1.6" if is_zero else "0.7"
-        opacity = "0.85" if is_zero else "0.25"
-        label = "Time 0" if is_zero else f"{relative:+d}"
-        lines.append(f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top + height}" stroke="{stroke}" stroke-width="{stroke_width}" opacity="{opacity}" />')
-        lines.append(f'<text x="{x:.2f}" y="{top + height + 18}" text-anchor="middle" font-family="Arial" font-size="11" fill="#333">{label}</text>')
+        stroke = "#b7b7b7" if is_zero else "#999"
+        stroke_width = "1.0" if is_zero else "0.7"
+        opacity = "0.55" if is_zero else "0.25"
+        dash = ' stroke-dasharray="4 5"' if is_zero else ""
+        label = "" if is_zero else f"{relative:+d}"
+        lines.append(
+            f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top + height}" '
+            f'stroke="{stroke}" stroke-width="{stroke_width}" opacity="{opacity}"{dash} />'
+        )
+        if label:
+            lines.append(f'<text x="{x:.2f}" y="{top + height + 18}" text-anchor="middle" font-family="Arial" font-size="11" fill="#333">{label}</text>')
         value += step
     return "".join(lines)
 
@@ -416,11 +553,7 @@ def x_grid_calendar(
     origin_x = left + ((forecast_origin_index - x_min) / span) * width
     lines.append(
         f'<line x1="{origin_x:.2f}" y1="{top}" x2="{origin_x:.2f}" y2="{top + height}" '
-        'stroke="#000" stroke-width="1.6" opacity="0.85" />'
-    )
-    lines.append(
-        f'<text x="{origin_x:.2f}" y="{top + height + 18}" text-anchor="middle" '
-        'font-family="Arial" font-size="11" font-weight="700" fill="#000">FCAST</text>'
+        'stroke="#b7b7b7" stroke-width="1" stroke-dasharray="4 5" opacity="0.55" />'
     )
 
     for year in range(first_year, end_date.year + step_years, step_years):
@@ -461,11 +594,17 @@ def dominant_interpretation(profile: dict[str, Any]) -> str:
     return "no_pressure_diagnostic"
 
 
-def forecast_quality_status(oil_fit: dict[str, Any] | None, gor_fit: dict[str, Any] | None, wor_fit: dict[str, Any] | None) -> dict[str, str]:
-    if not oil_fit:
-        return {"status": "red", "label": "No oil fit", "color": "#b00020"}
-    log_r2 = float(oil_fit.get("logR2", 0.0))
-    ratio_review = any(fit and fit.get("stageCount") == 2 for fit in (gor_fit, wor_fit))
+def primary_product(oil: list[tuple[int, float]], gas: list[tuple[int, float]]) -> str:
+    oil_mbo = daily_history_cum(oil) / 1_000.0
+    gas_mboe = daily_history_cum(gas) / 1_000.0 / 6.0
+    return "gas" if gas_mboe > max(oil_mbo * 2.0, 10.0) else "oil"
+
+
+def forecast_quality_status(primary_label: str, primary_fit: dict[str, Any] | None, ratio_fits: list[dict[str, Any] | None]) -> dict[str, str]:
+    if not primary_fit:
+        return {"status": "red", "label": f"No {primary_label.lower()} fit", "color": "#b00020"}
+    log_r2 = float(primary_fit.get("logR2", 0.0))
+    ratio_review = any(fit and fit.get("stageCount") == 2 for fit in ratio_fits)
     if log_r2 >= 0.95 and not ratio_review:
         return {"status": "green", "label": "Green", "color": "#008000"}
     if log_r2 >= 0.85:
@@ -475,31 +614,28 @@ def forecast_quality_status(oil_fit: dict[str, Any] | None, gor_fit: dict[str, A
 
 def arps_equation_box(
     effective_date: datetime,
-    oil_fit: dict[str, Any] | None,
-    gor_fit: dict[str, Any] | None,
-    wor_fit: dict[str, Any] | None,
+    primary_label: str,
+    primary_fit: dict[str, Any] | None,
+    ratio_lines: list[tuple[str, dict[str, Any] | None, float, str]],
     left: int,
     top: int,
 ) -> str:
-    quality = forecast_quality_status(oil_fit, gor_fit, wor_fit)
-    oil_r2 = float(oil_fit.get("logR2", 0.0)) if oil_fit else 0.0
-    oil_rmse = float(oil_fit.get("logRmse", 0.0)) if oil_fit else 0.0
+    quality = forecast_quality_status(primary_label, primary_fit, [fit for _label, fit, _scale, _unit in ratio_lines])
+    primary_r2 = float(primary_fit.get("logR2", 0.0)) if primary_fit else 0.0
+    primary_rmse = float(primary_fit.get("logRmse", 0.0)) if primary_fit else 0.0
     lines = [
-        f'Forecast parameters ({quality["label"]}; Oil log R2={oil_r2:.2f}; RMSE={oil_rmse:.2f})',
+        f'Forecast parameters ({quality["label"]}; {primary_label} log R2={primary_r2:.2f}; RMSE={primary_rmse:.2f})',
         f"Effective date: {effective_date.date().isoformat()}",
     ]
-    if oil_fit:
+    if primary_fit:
         lines.append(
-            f'Oil: qi={oil_fit["qi"]:.1f}, Di={oil_fit["nominalDiAnnual"]:.2f}/yr, '
-            f'b={oil_fit["bFactor"]:.1f}, Dmin={oil_fit["terminalDiAnnual"]:.2f}/yr'
+            f'{primary_label}: qi={primary_fit["qi"]:.1f}, Di={primary_fit["nominalDiAnnual"]:.2f}/yr, '
+            f'b={primary_fit["bFactor"]:.1f}, Dmin={primary_fit["terminalDiAnnual"]:.2f}/yr'
         )
     else:
-        lines.append("Oil: no fit")
+        lines.append(f"{primary_label}: no fit")
 
-    for label, fit, unit_scale, unit_label in (
-        ("GOR", gor_fit, 1000.0, "scf/bbl"),
-        ("WOR", wor_fit, 1.0, "bbl/bbl"),
-    ):
+    for label, fit, unit_scale, unit_label in ratio_lines:
         if not fit:
             lines.append(f"{label}: no ratio fit")
             continue
@@ -552,32 +688,94 @@ def cumulative_volume_box(
     forecast_start_index: float,
     left: int,
     top: int,
+    width: int,
+    height: int,
 ) -> str:
-    oil_hist = daily_history_cum(oil) / 1_000_000.0
-    oil_fcst = forecast_cum(oil_forecast, forecast_start_index) / 1_000_000.0
+    oil_hist = daily_history_cum(oil) / 1_000.0
+    oil_fcst = forecast_cum(oil_forecast, forecast_start_index) / 1_000.0
     gas_hist = daily_history_cum(gas) / 1_000.0
     gas_fcst = forecast_cum(gas_forecast, forecast_start_index) / 1_000.0
-    water_hist = daily_history_cum(water) / 1_000_000.0
-    water_fcst = forecast_cum(water_forecast, forecast_start_index) / 1_000_000.0
+    water_hist = daily_history_cum(water) / 1_000.0
+    water_fcst = forecast_cum(water_forecast, forecast_start_index) / 1_000.0
+    mboe_hist = oil_hist + gas_hist / 6.0
+    mboe_fcst = oil_fcst + gas_fcst / 6.0
     lines = [
         "Cumulative volumes",
-        f"Oil: Hist {oil_hist:.2f} MMBBL | Fcst {oil_fcst:.2f} | EUR {oil_hist + oil_fcst:.2f}",
+        f"Oil: Hist {oil_hist:.1f} Mbbl | Fcst {oil_fcst:.1f} | EUR {oil_hist + oil_fcst:.1f}",
         f"Gas: Hist {gas_hist:.1f} MMCF | Fcst {gas_fcst:.1f} | EUR {gas_hist + gas_fcst:.1f}",
-        f"Water: Hist {water_hist:.2f} MMBBL | Fcst {water_fcst:.2f} | EUR {water_hist + water_fcst:.2f}",
+        f"2-stream: Hist {mboe_hist:.1f} MBOE | Fcst {mboe_fcst:.1f} | EUR {mboe_hist + mboe_fcst:.1f}",
+        f"Water: Hist {water_hist:.1f} Mbbl | Fcst {water_fcst:.1f} | EUR {water_hist + water_fcst:.1f}",
     ]
+    return annotation_box(lines, left, top, width, height, anchor="end")
+
+
+def annotation_text(lines: list[str], x: int, top: int, anchor: str = "start") -> str:
     text_lines = []
     for index, line in enumerate(lines):
         weight = "700" if index == 0 else "400"
         text_lines.append(
-            f'<text x="{left + 10}" y="{top + 18 + index * 16}" font-family="Arial" '
+            f'<text x="{x}" y="{top + index * 16}" text-anchor="{anchor}" font-family="Arial" '
             f'font-size="11" font-weight="{weight}" fill="#111">{line}</text>'
         )
-    height = 20 + len(lines) * 16
+    return "".join(text_lines)
+
+
+def annotation_box(lines: list[str], left: int, top: int, width: int, height: int, anchor: str = "start") -> str:
+    x = left + width - 10 if anchor == "end" else left + 10
     return (
-        f'<rect x="{left}" y="{top}" width="430" height="{height}" fill="#fff" '
-        f'stroke="#111" opacity="0.92" />'
-        + "".join(text_lines)
+        f'<rect x="{left}" y="{top}" width="{width}" height="{height}" fill="#fff" '
+        'stroke="#777" stroke-width="0.8" opacity="0.94" />'
+        + annotation_text(lines, x, top + 18, anchor=anchor)
     )
+
+
+def fit_range_highlight(
+    fit_start_index: float,
+    fit_end_index: float,
+    x_min: float,
+    x_max: float,
+    left: int,
+    width: int,
+    top: int,
+    height: int,
+) -> str:
+    if fit_end_index <= fit_start_index or fit_end_index < x_min or fit_start_index > x_max:
+        return ""
+    span = max(x_max - x_min, 1e-9)
+    clipped_start = max(fit_start_index, x_min)
+    clipped_end = min(fit_end_index, x_max)
+    x1 = left + ((clipped_start - x_min) / span) * width
+    x2 = left + ((clipped_end - x_min) / span) * width
+    rect_width = max(x2 - x1, 1.0)
+    return (
+        f'<rect x="{x1:.2f}" y="{top}" width="{rect_width:.2f}" height="{height}" '
+        'fill="#d8d8d8" opacity="0.16" />'
+    )
+
+
+def method_parameter_lines(primary_label: str, ratio_method_lines: list[str]) -> list[str]:
+    return ["Method Parameters", f"{primary_label}: Arps hyp-to-exp decline", *ratio_method_lines]
+
+
+def selected_fit_origin_index(profile: dict[str, Any], row_dates: list[str], oil: list[tuple[int, float]]) -> int:
+    candidates = profile.get("fitOriginCandidates", [])
+    event_summary = profile.get("operationalEventSummary", {})
+    event_types = {item.get("eventType") for item in event_summary.get("events", [])}
+    prefer_first_positive = bool(event_types & {"pump_failure_or_lift_issue", "post_pump_repair_recovery"})
+    selected_date = None
+
+    dry_gas_decline = next((item for item in event_summary.get("events", []) if item.get("eventType") == "dry_gas_hyp_to_exp_decline"), None)
+    if dry_gas_decline:
+        selected_date = dry_gas_decline.get("startDate")
+    elif prefer_first_positive:
+        first_positive = next((item for item in candidates if item.get("type") == "first_positive_production"), None)
+        selected_date = first_positive.get("date") if first_positive else None
+    elif candidates:
+        selected_date = sorted(item["date"] for item in candidates)[-1]
+
+    if selected_date in row_dates:
+        return row_dates.index(selected_date)
+    return oil[0][0] if oil else 0
 
 
 def render_svg(
@@ -609,13 +807,20 @@ def render_svg(
     oil = series_points(rows, series_config["oil"]["column"])
     gas = series_points(rows, series_config["gas"]["column"])
     water = series_points(rows, series_config["water"]["column"])
+    fit_oil = fit_series_points(rows, series_config["oil"]["column"])
+    fit_gas = fit_series_points(rows, series_config["gas"]["column"])
+    fit_water = fit_series_points(rows, series_config["water"]["column"])
     casing = series_points(rows, series_config["casingPressure"]["column"])
     tubing = series_points(rows, series_config["tubingPressure"]["column"])
     pip = series_points(rows, series_config["pumpIntakePressure"]["column"])
 
-    last_oil = oil[-1] if oil else None
-    center_index = last_oil[0] if last_oil else max(len(rows) - 1, 0)
-    center_rate = last_oil[1] if last_oil else 100.0
+    primary = primary_product(oil, gas)
+    primary_label = "Gas" if primary == "gas" else "Oil"
+    primary_points = gas if primary == "gas" else oil
+    fit_primary_points = fit_gas if primary == "gas" else fit_oil
+    last_primary = primary_points[-1] if primary_points else None
+    center_index = last_primary[0] if last_primary else max(len(rows) - 1, 0)
+    center_rate = last_primary[1] if last_primary else 100.0
     if full_data_view:
         first_date = parse_date(rows[0]["Date"]) if rows else datetime(2020, 1, 1)
         axis_start_months_before_first_prod = int(plot_config.get("axisStartMonthsBeforeFirstProduction", 12))
@@ -683,31 +888,103 @@ def render_svg(
     origin_lines = []
     origin_dates = sorted({item["date"] for item in profile.get("fitOriginCandidates", [])})
     row_dates = [parse_date(row["Date"]).date().isoformat() for row in rows]
-    arps_origin_index = oil[0][0] if oil else 0
+    arps_origin_index = selected_fit_origin_index(profile, row_dates, fit_primary_points or primary_points)
     for origin in origin_dates:
         if origin in row_dates:
             origin_index = row_dates.index(origin)
-            arps_origin_index = origin_index
             if origin_index < x_min or origin_index > x_max:
                 continue
             x = plot_left + ((origin_index - x_min) / max(x_max - x_min, 1e-9)) * plot_width
             origin_lines.append(
                 f'<line x1="{x:.2f}" y1="{plot_top}" x2="{x:.2f}" y2="{plot_top + plot_height}" '
-                f'stroke="{guide_config["forecastOriginColor"]}" stroke-width="2" stroke-dasharray="8 5" opacity="0.8" />'
+                'stroke="#b7b7b7" stroke-width="1" stroke-dasharray="4 5" opacity="0.55" />'
             )
 
     visual_terminal_rate = value_from_log(log_y_min)
-    oil_arps_fit, oil_arps_path = arps_fit_svg_path(
-        oil, arps_origin_index, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height, visual_terminal_rate
+    primary_arps_fit, primary_arps_path = arps_fit_svg_path(
+        fit_primary_points, arps_origin_index, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height, visual_terminal_rate
     )
-    gor_fit = fit_ratio_profile(gas, oil, arps_origin_index, "GOR")
-    wor_fit = fit_ratio_profile(water, oil, arps_origin_index, "WOR")
-    gas_ratio_points = ratio_derived_rate_path(oil_arps_fit, gor_fit, arps_origin_index, visual_terminal_rate)
-    water_ratio_points = ratio_derived_rate_path(oil_arps_fit, wor_fit, arps_origin_index, visual_terminal_rate)
+    primary_forecast_points = arps_forecast_points(primary_arps_fit, arps_origin_index, center_index, x_max, visual_terminal_rate)
+    primary_arps_path = path_for(primary_forecast_points, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
+    if primary == "gas":
+        wgr_fit = fit_ratio_profile(fit_water, fit_gas, arps_origin_index, "WGR")
+        gor_fit = None
+        wor_fit = None
+        oil_forecast_points: list[tuple[float, float]] = []
+        gas_ratio_points = primary_forecast_points
+        water_ratio_points = ratio_derived_rate_path(primary_forecast_points, wgr_fit, arps_origin_index, visual_terminal_rate)
+        oil_arps_path = ""
+        ratio_lines = [("WGR", wgr_fit, 1_000.0, "bbl/MMcf")]
+        ratio_method_lines = [
+            f'Water: gas forecast * {wgr_fit["stageCount"]}-stage WGR, flat/declining ratio' if wgr_fit else "Water: no ratio forecast"
+        ]
+        ratio_overlay_specs = [
+            ("WGR", ratio_series(water, gas, 1_000.0), series_config["water"]["color"]),
+        ]
+        ratio_forecast_specs = [
+            ("WGR Fcst", ratio_series(water_ratio_points, gas_ratio_points, 1_000.0), series_config["water"]["color"]),
+        ]
+    else:
+        gor_fit = fit_ratio_profile(fit_gas, fit_oil, arps_origin_index, "GOR")
+        wor_fit = fit_ratio_profile(fit_water, fit_oil, arps_origin_index, "WOR")
+        oil_forecast_points = primary_forecast_points
+        oil_arps_path = primary_arps_path
+        gas_ratio_points = ratio_derived_rate_path(primary_forecast_points, gor_fit, arps_origin_index, visual_terminal_rate)
+        water_ratio_points = ratio_derived_rate_path(primary_forecast_points, wor_fit, arps_origin_index, visual_terminal_rate)
+        ratio_lines = [
+            ("GOR", gor_fit, 1000.0, "scf/bbl"),
+            ("WOR", wor_fit, 1.0, "bbl/bbl"),
+        ]
+        ratio_method_lines = [
+            f'Gas: oil forecast * {gor_fit["stageCount"]}-stage GOR, flat/declining ratio' if gor_fit else "Gas: no ratio forecast",
+            f'Water: oil forecast * {wor_fit["stageCount"]}-stage WOR, flat/declining ratio' if wor_fit else "Water: no ratio forecast",
+        ]
+        ratio_overlay_specs = [
+            ("GOR", ratio_series(gas, oil, 1_000.0), series_config["gas"]["color"]),
+            ("WOR", ratio_series(water, oil, 1.0), series_config["water"]["color"]),
+        ]
+        ratio_forecast_specs = [
+            ("GOR Fcst", ratio_series(gas_ratio_points, oil_forecast_points, 1_000.0), series_config["gas"]["color"]),
+            ("WOR Fcst", ratio_series(water_ratio_points, oil_forecast_points, 1.0), series_config["water"]["color"]),
+        ]
     gas_ratio_path = path_for(gas_ratio_points, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
     water_ratio_path = path_for(water_ratio_points, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
+    ratio_combined_specs = []
+    for label, history_points, color in ratio_overlay_specs:
+        forecast_points = next((points for forecast_label, points, _color in ratio_forecast_specs if forecast_label == f"{label} Fcst"), [])
+        ratio_combined_specs.append((label, merge_ratio_points(history_points, forecast_points), color))
+    ratio_overlay_points = [point for _label, points, _color in ratio_combined_specs for point in points]
+    ratio_log_min, ratio_log_max, ratio_axis = synced_ratio_axis(
+        ratio_overlay_points,
+        x_min,
+        x_max,
+        log_y_min,
+        log_y_max,
+        plot_left,
+        plot_width,
+        plot_top,
+        plot_height,
+    )
+    ratio_paths = []
+    ratio_legend_parts = []
+    for label, points, color in ratio_combined_specs:
+        path = path_for(points, x_min, x_max, ratio_log_min, ratio_log_max, plot_left, plot_width, plot_top, plot_height)
+        if path:
+            ratio_paths.append(
+                f'<path d="{path}" fill="none" stroke="{color}" stroke-width="1.25" stroke-dasharray="4 5" opacity="0.38"/>'
+            )
+            ratio_legend_parts.append((label, color))
+    ratio_legend = "".join(
+        f'<text x="{plot_left + plot_width - 155 + index * 54}" y="{plot_top + 28}" font-family="Arial" '
+        f'font-size="11" fill="{color}">{label}</text>'
+        for index, (label, color) in enumerate(ratio_legend_parts)
+    )
     effective_date = parse_date(rows[0]["Date"]) + timedelta(days=arps_origin_index) if rows else datetime(2024, 1, 1)
-    oil_forecast_points = oil_arps_fit.get("points", []) if oil_arps_fit else []
+    fit_range = fit_range_highlight(arps_origin_index, center_index, x_min, x_max, plot_left, plot_width, plot_top, plot_height)
+    annotation_gap = 20
+    annotation_width = int((plot_width - annotation_gap) / 2)
+    annotation_height = 88
+    annotation_top = plot_top + plot_height + 36
     volume_box = cumulative_volume_box(
         oil,
         gas,
@@ -716,31 +993,28 @@ def render_svg(
         gas_ratio_points,
         water_ratio_points,
         center_index,
-        plot_left + 10,
-        plot_top + 10,
+        plot_left + annotation_width + annotation_gap,
+        annotation_top,
+        annotation_width,
+        annotation_height,
     )
-    equation_box = arps_equation_box(effective_date, oil_arps_fit, gor_fit, wor_fit, plot_left + plot_width - 530, plot_top + 10)
-
-    fit_labels = []
-    if oil_arps_fit:
-        fit_labels.append(
-            f'Oil Arps: Di={oil_arps_fit["nominalDiAnnual"]:.2f}/yr b={oil_arps_fit["bFactor"]:.1f}'
-        )
-    if gor_fit:
-        fit_labels.append(f'Gas = oil forecast * {gor_fit["stageCount"]}-stage GOR')
-    if wor_fit:
-        fit_labels.append(f'Water = oil forecast * {wor_fit["stageCount"]}-stage WOR')
-    arps_fit_label = " | ".join(fit_labels)
+    method_parameter_box = annotation_box(
+        method_parameter_lines(primary_label, ratio_method_lines),
+        plot_left,
+        annotation_top,
+        annotation_width,
+        annotation_height,
+    )
+    equation_box = arps_equation_box(effective_date, primary_label, primary_arps_fit, ratio_lines, plot_left + plot_width - 530, plot_top + 10)
 
     center_marker = ""
-    if last_oil is not None:
-        center = point_xy(last_oil[0], last_oil[1], x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
-        if center:
-            cx, cy = center
-            center_marker = (
-                f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="6" fill="{guide_config["centerMarkerColor"]}" stroke="#fff" stroke-width="2" />'
-                f'<text x="{cx + 10:.2f}" y="{cy - 10:.2f}" font-family="Arial" font-size="12" font-weight="700" fill="#000">Time 0 / forecast start</text>'
-            )
+    if x_min <= center_index <= x_max:
+        cx = plot_left + ((center_index - x_min) / max(x_max - x_min, 1e-9)) * plot_width
+        axis_y = plot_top + plot_height
+        center_marker = (
+            f'<path d="M {cx:.2f},{axis_y:.2f} L {cx - 5:.2f},{axis_y + 9:.2f} L {cx + 5:.2f},{axis_y + 9:.2f} Z" '
+            f'fill="none" stroke="{guide_config["centerMarkerColor"]}" stroke-width="1.4" />'
+        )
 
     title = well.replace("&", "&amp;")
     interp = dominant_interpretation(profile)
@@ -750,13 +1024,22 @@ def render_svg(
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <rect width="100%" height="100%" fill="#ffffff"/>
   <text x="40" y="34" font-family="Arial" font-size="22" font-weight="700">{title}</text>
+  <text x="610" y="34" font-family="Arial" font-size="13" fill="{series_config["oil"]["color"]}">{series_config["oil"]["label"]}</text>
+  <text x="660" y="34" font-family="Arial" font-size="13" fill="{series_config["gas"]["color"]}">{series_config["gas"]["label"]}</text>
+  <text x="710" y="34" font-family="Arial" font-size="13" fill="{series_config["water"]["color"]}">{series_config["water"]["label"]}</text>
+  <text x="770" y="34" font-family="Arial" font-size="13" fill="{series_config["casingPressure"]["color"]}">{series_config["casingPressure"]["label"]}</text>
+  <text x="850" y="34" font-family="Arial" font-size="13" fill="{series_config["tubingPressure"]["color"]}">{series_config["tubingPressure"]["label"]}</text>
+  <text x="930" y="34" font-family="Arial" font-size="13" fill="{series_config["pumpIntakePressure"]["color"]}">{series_config["pumpIntakePressure"]["label"]}</text>
   <text x="40" y="58" font-family="Arial" font-size="13" fill="#333">QC: {recommendation["qc"]} | Method: {recommendation["recommendedMethod"]} | Pressure: {interp}</text>
   <text x="40" y="78" font-family="Arial" font-size="12" fill="#555">{reason_text}</text>
   <rect x="{plot_left}" y="{plot_top}" width="{plot_width}" height="{plot_height}" fill="#fbfbfb" stroke="#111"/>
   {log_grid(log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)}
   {x_grid_calendar(x_min, x_max, parse_date(rows[0]["Date"]), center_index, plot_left, plot_width, plot_top, plot_height) if full_data_view and rows else x_grid(x_min, x_max, center_index, plot_left, plot_width, plot_top, plot_height)}
+  {ratio_axis}
+  {fit_range}
   {''.join(event_lines)}
   {''.join(origin_lines)}
+  {method_parameter_box}
   {volume_box}
   {equation_box}
   {center_marker}
@@ -766,17 +1049,11 @@ def render_svg(
   <path d="{gas_ratio_path}" fill="none" stroke="{series_config["gas"]["color"]}" stroke-width="2.2" stroke-dasharray="10 6" opacity="0.85"/>
   <path d="{path_for(water, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)}" fill="none" stroke="{series_config["water"]["color"]}" stroke-width="1.6"/>
   <path d="{water_ratio_path}" fill="none" stroke="{series_config["water"]["color"]}" stroke-width="2.0" stroke-dasharray="10 6" opacity="0.85"/>
+  {''.join(ratio_paths)}
+  {ratio_legend}
   <path d="{path_for(casing, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)}" fill="none" stroke="{series_config["casingPressure"]["color"]}" stroke-width="1.4" opacity="0.75"/>
   <path d="{path_for(tubing, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)}" fill="none" stroke="{series_config["tubingPressure"]["color"]}" stroke-width="1.4" opacity="0.75"/>
   <path d="{path_for(pip, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)}" fill="none" stroke="{series_config["pumpIntakePressure"]["color"]}" stroke-width="1.4" opacity="0.75"/>
-  <text x="70" y="540" font-family="Arial" font-size="13" fill="{series_config["oil"]["color"]}">{series_config["oil"]["label"]}</text>
-  <text x="120" y="540" font-family="Arial" font-size="13" fill="{series_config["gas"]["color"]}">{series_config["gas"]["label"]}</text>
-  <text x="170" y="540" font-family="Arial" font-size="13" fill="{series_config["water"]["color"]}">{series_config["water"]["label"]}</text>
-  <text x="230" y="540" font-family="Arial" font-size="13" fill="{series_config["casingPressure"]["color"]}">{series_config["casingPressure"]["label"]}</text>
-  <text x="310" y="540" font-family="Arial" font-size="13" fill="{series_config["tubingPressure"]["color"]}">{series_config["tubingPressure"]["label"]}</text>
-  <text x="390" y="540" font-family="Arial" font-size="13" fill="{series_config["pumpIntakePressure"]["color"]}">{series_config["pumpIntakePressure"]["label"]}</text>
-  <text x="70" y="565" font-family="Arial" font-size="12" fill="#666">Dashed green = oil Arps hyp-to-exp; dashed red/blue = oil forecast multiplied by fitted GOR/WOR ratio profiles.</text>
-  <text x="70" y="590" font-family="Arial" font-size="12" fill="#666">{arps_fit_label}</text>
 </svg>
 """
 

@@ -46,7 +46,7 @@
     },
     "tubingPressure": {
       "column": "Well.Pressure.Tubing - Resolver",
-      "color": "#00a6a6",
+      "color": "#d63384",
       "label": "Tubing P"
     },
     "pumpIntakePressure": {

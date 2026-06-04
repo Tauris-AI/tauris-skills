@@ -51,16 +51,19 @@ def build_row(
     choke: float,
     event_type: str = "normal",
     event_note: str = "",
+    gas_override: float | None = None,
+    water_override: float | None = None,
+    asset_name: str = "Synthetic Unconventional Oil",
 ) -> dict[str, object]:
-    gas = oil * gor
-    water = oil * water_cut / max(1.0 - water_cut, 0.05)
+    gas = gas_override if gas_override is not None else oil * gor
+    water = water_override if water_override is not None else oil * water_cut / max(1.0 - water_cut, 0.05)
     uptime = clamp(hours / 24.0, 0.0, 1.0)
     oil *= uptime
     gas *= uptime
     water *= uptime
     return {
         "Entity Name": well,
-        "Asset Name": "Synthetic Unconventional Oil",
+        "Asset Name": asset_name,
         "Date": (start + timedelta(days=day)).strftime("%m/%d/%Y"),
         "OIL - Resolver": round(oil, 3),
         "GAS - Resolver": round(gas, 3),
@@ -89,6 +92,9 @@ def generate_well(well: str, days: int, scenario: str, seed: int) -> list[dict[s
 
     for day in range(days):
         oil = arps_rate(qi, di, b, day)
+        gas_override = None
+        water_override = None
+        asset_name = "Synthetic Unconventional Oil"
         gor = base_gor
         water_cut = 0.22
         pip = 1850 - day * 0.65
@@ -116,7 +122,7 @@ def generate_well(well: str, days: int, scenario: str, seed: int) -> list[dict[s
                 pip -= 260
                 tubing -= 130
         elif scenario == "pump_failure":
-            if day >= 210:
+            if 210 <= day < 255:
                 event_type = "pump_failure_or_lift_issue"
                 event_note = "Rate loss with flat/rising pressure and lower flowing hours."
                 oil *= 0.52
@@ -125,6 +131,13 @@ def generate_well(well: str, days: int, scenario: str, seed: int) -> list[dict[s
                 casing += 160
                 tubing += 80
                 hours = 11.5
+            elif 255 <= day < 285:
+                event_type = "post_pump_repair_recovery"
+                event_note = "Pump repair restored drawdown; do not fit the failure interval as depletion."
+                oil *= 1.0 + 0.18 * math.exp(-0.045 * (day - 255))
+                gor *= 1.02
+                pip -= 180 * math.exp(-0.035 * (day - 255))
+                tubing -= 90 * math.exp(-0.035 * (day - 255))
         elif scenario == "shutin_restart":
             if 160 <= day < 182:
                 event_type = "shutin"
@@ -189,6 +202,33 @@ def generate_well(well: str, days: int, scenario: str, seed: int) -> list[dict[s
                 event_type = "minor_operational_noise"
                 event_note = "No pressure data available."
                 hours = 18
+        elif scenario == "haynesville_dry_gas_managed_choke":
+            asset_name = "Synthetic Dry Gas"
+            oil = 0.0
+            managed_days = 270
+            line_pressure = 1100.0
+            start_tubing_pressure = 6200.0
+            start_casing_pressure = 7600.0
+            if day < managed_days:
+                event_type = "managed_choke_to_line_pressure"
+                event_note = "Dry gas managed choke program; pressure is drawn down toward line pressure before decline forecast."
+                gas_override = 20_000.0 * (1.0 - 0.00025 * day)
+                water_override = 1_250.0 * math.exp(-0.0022 * day) + 260.0
+                fraction = day / managed_days
+                tubing = start_tubing_pressure - (start_tubing_pressure - line_pressure) * fraction
+                casing = start_casing_pressure - (start_casing_pressure - 1850.0) * fraction
+                pip = -1
+                choke = 14.0 + 30.0 * fraction
+            else:
+                event_type = "dry_gas_hyp_to_exp_decline"
+                event_note = "Managed period reached line pressure; gas is now forecastable with hyp-to-exp Arps."
+                decline_day = day - managed_days
+                gas_override = arps_rate(18_650.0, 0.0022, 1.1, decline_day)
+                water_override = 690.0 * math.exp(-0.0012 * decline_day) + 260.0
+                tubing = line_pressure - 0.18 * decline_day
+                casing = 1850.0 - 0.32 * decline_day
+                pip = -1
+                choke = 44.0
         else:
             raise ValueError(f"Unknown scenario: {scenario}")
 
@@ -196,7 +236,26 @@ def generate_well(well: str, days: int, scenario: str, seed: int) -> list[dict[s
         pip += rng.uniform(-18, 18) if pip >= 0 else 0
         casing += rng.uniform(-25, 25) if casing >= 0 else 0
         tubing += rng.uniform(-16, 16) if tubing >= 0 else 0
-        rows.append(build_row(well, start, day, oil, gor, water_cut, pip, casing, tubing, hours, choke, event_type, event_note))
+        rows.append(
+            build_row(
+                well,
+                start,
+                day,
+                oil,
+                gor,
+                water_cut,
+                pip,
+                casing,
+                tubing,
+                hours,
+                choke,
+                event_type,
+                event_note,
+                gas_override=gas_override,
+                water_override=water_override,
+                asset_name=asset_name,
+            )
+        )
 
     return rows
 
@@ -220,6 +279,7 @@ def main() -> int:
         ("SYNTH GOR RISE 08H", 720, "gor_rise"),
         ("SYNTH WATER LOADUP 09H", 540, "water_loadup"),
         ("SYNTH MISSING PRESSURE 10H", 365, "missing_pressure"),
+        ("SYNTH HAYNESVILLE MANAGED CHOKE 11H", 730, "haynesville_dry_gas_managed_choke"),
     ]
 
     output = Path(args.output)

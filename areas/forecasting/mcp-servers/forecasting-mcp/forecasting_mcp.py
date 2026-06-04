@@ -461,6 +461,43 @@ def _pressure_projection_diagnostics(rows: list[dict[str, Any]], columns: Column
     return diagnostics
 
 
+def _operational_event_summary(rows: list[dict[str, Any]], dates: list[date]) -> dict[str, Any]:
+    event_column = next((column for column in rows[0].keys() if _norm(column) == "syntheticeventtype"), None) if rows else None
+    note_column = next((column for column in rows[0].keys() if _norm(column) == "syntheticeventnote"), None) if rows else None
+    if not event_column:
+        return {"eventColumn": None, "events": [], "hasOperationalEvents": False}
+
+    events: dict[str, dict[str, Any]] = {}
+    for index, row in enumerate(rows):
+        event_type = str(row.get(event_column, "") or "").strip()
+        if not event_type or event_type == "normal":
+            continue
+        item = events.setdefault(
+            event_type,
+            {
+                "eventType": event_type,
+                "count": 0,
+                "startDate": dates[index].isoformat(),
+                "endDate": dates[index].isoformat(),
+                "note": str(row.get(note_column, "") or "").strip() if note_column else "",
+            },
+        )
+        item["count"] += 1
+        item["endDate"] = dates[index].isoformat()
+
+    operational_keywords = ("pump", "lift", "choke", "facility", "downtime", "shutin", "repair", "restart")
+    event_items = sorted(events.values(), key=lambda item: item["startDate"])
+    has_operational_events = any(
+        any(keyword in item["eventType"] for keyword in operational_keywords)
+        for item in event_items
+    )
+    return {
+        "eventColumn": event_column,
+        "events": event_items,
+        "hasOperationalEvents": has_operational_events,
+    }
+
+
 def _load_csv(csv_path: str) -> tuple[ColumnMap, dict[str, list[dict[str, Any]]]]:
     path = Path(csv_path).expanduser().resolve()
     if not path.exists():
@@ -505,6 +542,7 @@ def _profile_well(well: str, records: list[dict[str, Any]], columns: ColumnMap) 
     usable_production = [name for name, profile in production_signals.items() if profile["isUsable"]]
     origin_candidates = _origin_candidates(dates, rows, columns)
     pressure_diagnostics = _pressure_projection_diagnostics(rows, columns)
+    operational_events = _operational_event_summary(rows, dates)
 
     return {
         "well": well,
@@ -518,6 +556,7 @@ def _profile_well(well: str, records: list[dict[str, Any]], columns: ColumnMap) 
         "usablePressure": usable_pressure,
         "fitOriginCandidates": origin_candidates,
         "pressureProjectionDiagnostics": pressure_diagnostics,
+        "operationalEventSummary": operational_events,
     }
 
 
@@ -584,7 +623,12 @@ def _recommend_for_profile(profile: dict[str, Any]) -> dict[str, Any]:
     if cadence in {"unknown", "sparse"}:
         qc = "yellow"
         reasons.append("Cadence is sparse or unknown; human review is recommended.")
-    if any(candidate["type"] == "sustained_rate_uplift" for candidate in profile.get("fitOriginCandidates", [])):
+    operational_events = profile.get("operationalEventSummary", {})
+    if operational_events.get("hasOperationalEvents"):
+        qc = "yellow"
+        event_types = ", ".join(item["eventType"] for item in operational_events.get("events", [])[:3])
+        reasons.append(f"Operational events detected ({event_types}); exclude recoverable operating effects from depletion fit selection.")
+    elif any(candidate["type"] == "sustained_rate_uplift" for candidate in profile.get("fitOriginCandidates", [])):
         qc = "yellow"
         reasons.append("Possible recompletion/stimulation or operating changes detected; test fit origins across candidate regime changes.")
 
