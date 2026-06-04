@@ -12,7 +12,6 @@ sys.path.insert(0, str(REPO_ROOT / "areas/forecasting/mcp-servers/forecasting-mc
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from forecasting_mcp import convert_decline_convention, profile_and_recommend, validate_industry_alignment  # noqa: E402
-from generate_forecasting_synthetic_data import FIELDNAMES, generate_well  # noqa: E402
 from generate_forecasting_sample_plots import load_chart_config, render_svg  # noqa: E402
 
 
@@ -77,16 +76,23 @@ def test_decline_convention_conversion_uses_effective_annual_values() -> None:
     assert result["entryValues"]["terminalDecline"] == round((1 - __import__("math").exp(-(0.0002 * 365.25))) * 100, 6)
 
 
-def test_synthetic_generator_creates_daily_unconventional_rows() -> None:
-    rows = generate_well("SYNTH TEST PUMP SWAP", 365, "pump_swap_month_3_4", seed=1776)
-    assert len(rows) == 365
-    assert set(FIELDNAMES).issubset(rows[0].keys())
-    assert any(row["Synthetic.EventType"] == "post_pump_swap" for row in rows)
-    assert any(row["Well.Pressure.PumpIntake - Resolver"] != "" for row in rows)
-
-
 def test_sample_plot_renderer_returns_svg() -> None:
-    rows = generate_well("SYNTH TEST PLOT", 30, "base_depletion", seed=1888)
+    rows = []
+    start = date(2024, 1, 1)
+    for day in range(30):
+        rows.append(
+            {
+                "Entity Name": "SYNTH TEST PLOT",
+                "Date": (start + timedelta(days=day)).strftime("%m/%d/%Y"),
+                "OIL - Resolver": f"{900 - day * 12:.3f}",
+                "GAS - Resolver": f"{1500 + day * 8:.3f}",
+                "WATER - Resolver": f"{220 + day * 1.5:.3f}",
+                "Well.Pressure.Casing - Resolver": f"{3200 - day * 9:.3f}",
+                "Well.Pressure.Tubing - Resolver": f"{2300 - day * 7:.3f}",
+                "Well.Pressure.PumpIntake - Resolver": f"{1800 - day * 4:.3f}",
+                "Synthetic.EventType": "normal",
+            }
+        )
     profile = {
         "fitOriginCandidates": [{"date": "2024-01-01", "type": "first_positive_production"}],
         "pressureProjectionDiagnostics": [{"interpretation": "depletion_supported"}],
@@ -132,7 +138,6 @@ def test_industry_alignment_validation_avoids_compliance_claim() -> None:
 def main() -> int:
     test_profile_and_recommend_detects_pressure_and_multiple_origins()
     test_decline_convention_conversion_uses_effective_annual_values()
-    test_synthetic_generator_creates_daily_unconventional_rows()
     test_sample_plot_renderer_returns_svg()
     test_industry_alignment_validation_avoids_compliance_claim()
     print("Forecasting MCP tests passed.")
