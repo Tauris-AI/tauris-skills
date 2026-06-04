@@ -1,5 +1,10 @@
 {
   "viewName": "engineering_log_centered_handoff",
+  "referenceImage": "areas/forecasting/assets/engineering_log_decline_plot_reference.png",
+  "notes": [
+    "Use the reference image as the canonical final-plot style.",
+    "Generated SVGs are experimental scaffolding only and should not be treated as the target view."
+  ],
   "plot": {
     "width": 1120,
     "height": 620,

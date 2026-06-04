@@ -112,3 +112,7 @@ Convention tool:
 ```text
 convert_decline_convention(nominal_di, b_factor, terminal_dmin, input_time_unit)
 ```
+
+## Chart Reference
+
+Use `areas/forecasting/assets/engineering_log_decline_plot_reference.png` as the canonical final-plot style. Do not treat generated SVG samples as authoritative. A production chart should match the reference image's engineering log plot behavior, colored series conventions, dense grid, and history/forecast orientation.

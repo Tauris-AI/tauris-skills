@@ -28,3 +28,7 @@ The profiler recognizes casing pressure, flowing tubing pressure, tubing pressur
 ## Decline Convention Export
 
 The conversion tool pins time to years, converts initial nominal Arps decline to effective secant annual decline, and converts terminal nominal exponential decline to effective annual exponential decline. Use these output values for ARIES, ComboCurve, PHDWin, Mosaic, and similar forecast-entry screens that expect effective annual decline conventions.
+
+## Chart Reference
+
+Use `../../assets/engineering_log_decline_plot_reference.png` as the final plot reference. The SVG generator is only a local scaffold; it is not the target chart implementation.

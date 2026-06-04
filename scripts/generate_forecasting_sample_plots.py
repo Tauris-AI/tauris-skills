@@ -330,7 +330,12 @@ def render_svg(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate SVG sample plots organized by forecast profile.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate experimental SVG sample plots organized by forecast profile. "
+            "Use the forecasting area PNG reference image as the canonical final plot style."
+        )
+    )
     parser.add_argument("--input", default=str(DEFAULT_INPUT))
     parser.add_argument("--profile", default=str(DEFAULT_PROFILE))
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
