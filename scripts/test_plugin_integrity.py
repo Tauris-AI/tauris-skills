@@ -45,6 +45,8 @@ COWORK_CONFIGS = [
 ]
 
 CLAUDE_PLUGIN_MANIFEST = REPO_ROOT / ".claude-plugin/plugin.json"
+CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin/marketplace.json"
+AI_PLATFORM_GUIDE = REPO_ROOT / "Tauris_Skills_AI_Platform_Install_Guide.md"
 
 
 def _markdown_paths(text: str) -> set[str]:
@@ -86,13 +88,61 @@ def test_phdwin_cowork_uses_32_bit_python() -> None:
     assert "-3.12-32" in args
 
 
-def test_claude_plugin_manifest_exists_without_marketplace() -> None:
+def test_claude_plugin_manifest_exists() -> None:
     data = json.loads(CLAUDE_PLUGIN_MANIFEST.read_text(encoding="utf-8"))
     assert data["name"] == "tauris-skills"
     assert data["version"]
     assert data["guides"]
-    assert not (REPO_ROOT / "marketplace.json").exists()
-    assert not (REPO_ROOT / ".claude-plugin/marketplace.json").exists()
+
+
+def test_claude_marketplace_plugin_sources_resolve() -> None:
+    marketplace = json.loads(CLAUDE_MARKETPLACE.read_text(encoding="utf-8"))
+    assert marketplace["name"] == "tauris-skills"
+    plugins = marketplace["plugins"]
+    assert {plugin["name"] for plugin in plugins} == {
+        "phdwin-v2",
+        "aries",
+        "forecasting",
+        "petroleum-economics",
+    }
+    for plugin in plugins:
+        source = plugin["source"]
+        assert source.startswith("./"), f"source must be relative to marketplace root: {source}"
+        plugin_root = REPO_ROOT / source[2:]
+        assert plugin_root.exists(), f"missing plugin source root: {source}"
+        manifest = plugin_root / ".claude-plugin/plugin.json"
+        assert manifest.exists(), f"missing plugin manifest: {manifest.relative_to(REPO_ROOT)}"
+        manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+        assert manifest_data["name"] == plugin["name"]
+        if plugin["name"] in {"phdwin-v2", "aries", "forecasting"}:
+            mcp_config = plugin_root / ".mcp.json"
+            assert mcp_config.exists(), f"missing plugin MCP config: {mcp_config.relative_to(REPO_ROOT)}"
+            mcp_data = json.loads(mcp_config.read_text(encoding="utf-8"))
+            assert "mcpServers" in mcp_data
+
+
+def test_ai_platform_guide_covers_supported_surfaces() -> None:
+    text = AI_PLATFORM_GUIDE.read_text(encoding="utf-8")
+    required_sections = [
+        "## 3. Claude Cowork install",
+        "## 4. ChatGPT install / usage",
+        "## 5. Grok install / usage",
+        "## 6. Codex install / usage",
+    ]
+    for section in required_sections:
+        assert section in text, f"missing platform guide section: {section}"
+
+    required_phrases = [
+        "ChatGPT should not be assumed to run local Windows Python",
+        "Remote MCP / app access",
+        "Grok has built-in connectors and supports custom MCP connectors",
+        "Custom MCP connector",
+        "Codex discovers skills from `.agents\\skills` locations",
+        "Codex stores MCP configuration in `config.toml`",
+        "Native PHDWin extraction still requires Windows Python",
+    ]
+    for phrase in required_phrases:
+        assert phrase in text, f"missing platform guide safety/install language: {phrase}"
 
 
 def test_sqlite_review_template_opens() -> None:
@@ -126,7 +176,9 @@ def main() -> int:
     test_plugin_guide_references_resolve()
     test_cowork_configs_parse()
     test_phdwin_cowork_uses_32_bit_python()
-    test_claude_plugin_manifest_exists_without_marketplace()
+    test_claude_plugin_manifest_exists()
+    test_claude_marketplace_plugin_sources_resolve()
+    test_ai_platform_guide_covers_supported_surfaces()
     test_sqlite_review_template_opens()
     print("Plugin integrity tests passed.")
     return 0

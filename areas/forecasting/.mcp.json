@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "forecasting-mcp": {
+      "command": "py",
+      "args": [
+        "-3.12",
+        "${CLAUDE_PLUGIN_ROOT}/mcp-servers/forecasting-mcp/forecasting_mcp.py"
+      ]
+    }
+  }
+}

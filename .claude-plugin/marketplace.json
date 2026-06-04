@@ -1,0 +1,32 @@
+{
+  "name": "tauris-skills",
+  "owner": {
+    "name": "Tauris AI"
+  },
+  "description": "Petroleum engineering skills, MCP servers, and review templates for Tauris workflows.",
+  "metadata": {
+    "description": "Petroleum engineering skills, MCP servers, and review templates for Tauris workflows."
+  },
+  "plugins": [
+    {
+      "name": "phdwin-v2",
+      "source": "./areas/phdwin-v2",
+      "description": "PHDWin v2 inspection, SQLite review export, and PHDWin-to-Aries conversion readiness."
+    },
+    {
+      "name": "aries",
+      "source": "./areas/aries",
+      "description": "ARIES table-contract review, AC_ECONOMIC validation, and Access/SQLite template inspection."
+    },
+    {
+      "name": "forecasting",
+      "source": "./areas/forecasting",
+      "description": "Production/pressure profiling, forecast method eligibility, forecast-origin review, and QC routing."
+    },
+    {
+      "name": "petroleum-economics",
+      "source": "./areas/petroleum-economics",
+      "description": "System-agnostic petroleum economics review workflows."
+    }
+  ]
+}

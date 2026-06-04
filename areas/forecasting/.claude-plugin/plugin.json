@@ -1,0 +1,10 @@
+{
+  "name": "forecasting",
+  "description": "Production/pressure profiling, forecast method eligibility, forecast-origin review, and QC routing.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Tauris AI"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Tauris-AI/tauris-skills"
+}

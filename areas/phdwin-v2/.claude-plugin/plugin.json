@@ -1,0 +1,10 @@
+{
+  "name": "phdwin-v2",
+  "description": "PHDWin v2 inspection, SQLite review export, and PHDWin-to-Aries conversion readiness.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Tauris AI"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Tauris-AI/tauris-skills"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "aries",
+  "description": "ARIES table-contract review, AC_ECONOMIC validation, and Access/SQLite template inspection.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Tauris AI"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Tauris-AI/tauris-skills"
+}

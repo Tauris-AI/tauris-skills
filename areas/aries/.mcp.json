@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "aries-mcp": {
+      "command": "py",
+      "args": [
+        "-3.12",
+        "${CLAUDE_PLUGIN_ROOT}/mcp-servers/aries-mcp/aries_mcp.py"
+      ]
+    }
+  }
+}
