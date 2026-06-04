@@ -103,6 +103,9 @@ def test_sample_plot_renderer_returns_svg() -> None:
     assert "Arps hyp-to-exp" in svg
     assert "GOR" in svg
     assert "WOR" in svg
+    assert "Forecast parameters (" in svg
+    assert "Cumulative volumes" in svg
+    assert "EUR" in svg
     assert "stroke-dasharray=\"10 6\"" in svg
 
 

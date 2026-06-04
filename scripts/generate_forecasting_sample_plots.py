@@ -173,8 +173,14 @@ def fit_arps_hyp_to_exp(
                 continue
             log_qi = sum(residuals) / len(residuals)
             qi = math.exp(log_qi)
-            errors = [(math.log(value) - math.log(qi * shape)) ** 2 for value, shape in shapes]
+            actual_logs = [math.log(value) for value, _shape in shapes]
+            predicted_logs = [math.log(qi * shape) for _value, shape in shapes]
+            errors = [(actual - predicted) ** 2 for actual, predicted in zip(actual_logs, predicted_logs)]
             rmse = math.sqrt(sum(errors) / len(errors))
+            mean_log = sum(actual_logs) / len(actual_logs)
+            total_sum_squares = sum((actual - mean_log) ** 2 for actual in actual_logs)
+            residual_sum_squares = sum(errors)
+            log_r2 = 1.0 - residual_sum_squares / total_sum_squares if total_sum_squares > 1e-12 else 1.0
             candidates.append(
                 {
                     "qi": qi,
@@ -182,12 +188,21 @@ def fit_arps_hyp_to_exp(
                     "bFactor": b_factor,
                     "terminalDiAnnual": terminal_di_annual,
                     "logRmse": rmse,
+                    "logR2": max(min(log_r2, 1.0), -9.999),
                 }
             )
     if not candidates:
         return None
 
     best = min(candidates, key=lambda item: item["logRmse"])
+    if best["logR2"] >= 0.95:
+        best["quality"] = "excellent"
+    elif best["logR2"] >= 0.85:
+        best["quality"] = "good"
+    elif best["logR2"] >= 0.70:
+        best["quality"] = "review"
+    else:
+        best["quality"] = "poor"
     curve_points = []
     end_index = int(max(x_max, fit_points[-1][0]))
     step = 15 if end_index - origin_index <= 1200 else 30
@@ -446,6 +461,18 @@ def dominant_interpretation(profile: dict[str, Any]) -> str:
     return "no_pressure_diagnostic"
 
 
+def forecast_quality_status(oil_fit: dict[str, Any] | None, gor_fit: dict[str, Any] | None, wor_fit: dict[str, Any] | None) -> dict[str, str]:
+    if not oil_fit:
+        return {"status": "red", "label": "No oil fit", "color": "#b00020"}
+    log_r2 = float(oil_fit.get("logR2", 0.0))
+    ratio_review = any(fit and fit.get("stageCount") == 2 for fit in (gor_fit, wor_fit))
+    if log_r2 >= 0.95 and not ratio_review:
+        return {"status": "green", "label": "Green", "color": "#008000"}
+    if log_r2 >= 0.85:
+        return {"status": "yellow", "label": "Yellow", "color": "#c58a00"}
+    return {"status": "red", "label": "Red", "color": "#b00020"}
+
+
 def arps_equation_box(
     effective_date: datetime,
     oil_fit: dict[str, Any] | None,
@@ -454,8 +481,11 @@ def arps_equation_box(
     left: int,
     top: int,
 ) -> str:
+    quality = forecast_quality_status(oil_fit, gor_fit, wor_fit)
+    oil_r2 = float(oil_fit.get("logR2", 0.0)) if oil_fit else 0.0
+    oil_rmse = float(oil_fit.get("logRmse", 0.0)) if oil_fit else 0.0
     lines = [
-        "Forecast parameters",
+        f'Forecast parameters ({quality["label"]}; Oil log R2={oil_r2:.2f}; RMSE={oil_rmse:.2f})',
         f"Effective date: {effective_date.date().isoformat()}",
     ]
     if oil_fit:
@@ -479,13 +509,72 @@ def arps_equation_box(
     text_lines = []
     for index, line in enumerate(lines):
         weight = "700" if index == 0 else "400"
+        fill = quality["color"] if index == 0 else "#111"
+        text_lines.append(
+            f'<text x="{left + 10}" y="{top + 18 + index * 16}" font-family="Arial" '
+            f'font-size="11" font-weight="{weight}" fill="{fill}">{line}</text>'
+        )
+    height = 20 + len(lines) * 16
+    return (
+        f'<rect x="{left}" y="{top}" width="520" height="{height}" fill="#fff" '
+        f'stroke="#111" opacity="0.92" />'
+        + "".join(text_lines)
+    )
+
+
+def daily_history_cum(points: list[tuple[int, float]]) -> float:
+    return sum(value for _index, value in points if value > 0)
+
+
+def forecast_cum(points: list[tuple[float, float]], start_index: float) -> float:
+    if len(points) < 2:
+        return 0.0
+    total = 0.0
+    for (x1, y1), (x2, y2) in zip(points, points[1:]):
+        if x2 <= start_index or x2 <= x1:
+            continue
+        clipped_x1 = max(x1, start_index)
+        if clipped_x1 > x1:
+            fraction = (clipped_x1 - x1) / (x2 - x1)
+            y1 = y1 + (y2 - y1) * fraction
+            x1 = clipped_x1
+        total += max(x2 - x1, 0.0) * (max(y1, 0.0) + max(y2, 0.0)) / 2.0
+    return total
+
+
+def cumulative_volume_box(
+    oil: list[tuple[int, float]],
+    gas: list[tuple[int, float]],
+    water: list[tuple[int, float]],
+    oil_forecast: list[tuple[float, float]],
+    gas_forecast: list[tuple[float, float]],
+    water_forecast: list[tuple[float, float]],
+    forecast_start_index: float,
+    left: int,
+    top: int,
+) -> str:
+    oil_hist = daily_history_cum(oil) / 1_000_000.0
+    oil_fcst = forecast_cum(oil_forecast, forecast_start_index) / 1_000_000.0
+    gas_hist = daily_history_cum(gas) / 1_000.0
+    gas_fcst = forecast_cum(gas_forecast, forecast_start_index) / 1_000.0
+    water_hist = daily_history_cum(water) / 1_000_000.0
+    water_fcst = forecast_cum(water_forecast, forecast_start_index) / 1_000_000.0
+    lines = [
+        "Cumulative volumes",
+        f"Oil: Hist {oil_hist:.2f} MMBBL | Fcst {oil_fcst:.2f} | EUR {oil_hist + oil_fcst:.2f}",
+        f"Gas: Hist {gas_hist:.1f} MMCF | Fcst {gas_fcst:.1f} | EUR {gas_hist + gas_fcst:.1f}",
+        f"Water: Hist {water_hist:.2f} MMBBL | Fcst {water_fcst:.2f} | EUR {water_hist + water_fcst:.2f}",
+    ]
+    text_lines = []
+    for index, line in enumerate(lines):
+        weight = "700" if index == 0 else "400"
         text_lines.append(
             f'<text x="{left + 10}" y="{top + 18 + index * 16}" font-family="Arial" '
             f'font-size="11" font-weight="{weight}" fill="#111">{line}</text>'
         )
     height = 20 + len(lines) * 16
     return (
-        f'<rect x="{left}" y="{top}" width="405" height="{height}" fill="#fff" '
+        f'<rect x="{left}" y="{top}" width="430" height="{height}" fill="#fff" '
         f'stroke="#111" opacity="0.92" />'
         + "".join(text_lines)
     )
@@ -618,7 +707,19 @@ def render_svg(
     gas_ratio_path = path_for(gas_ratio_points, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
     water_ratio_path = path_for(water_ratio_points, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)
     effective_date = parse_date(rows[0]["Date"]) + timedelta(days=arps_origin_index) if rows else datetime(2024, 1, 1)
-    equation_box = arps_equation_box(effective_date, oil_arps_fit, gor_fit, wor_fit, plot_left + plot_width - 415, plot_top + 10)
+    oil_forecast_points = oil_arps_fit.get("points", []) if oil_arps_fit else []
+    volume_box = cumulative_volume_box(
+        oil,
+        gas,
+        water,
+        oil_forecast_points,
+        gas_ratio_points,
+        water_ratio_points,
+        center_index,
+        plot_left + 10,
+        plot_top + 10,
+    )
+    equation_box = arps_equation_box(effective_date, oil_arps_fit, gor_fit, wor_fit, plot_left + plot_width - 530, plot_top + 10)
 
     fit_labels = []
     if oil_arps_fit:
@@ -656,6 +757,7 @@ def render_svg(
   {x_grid_calendar(x_min, x_max, parse_date(rows[0]["Date"]), center_index, plot_left, plot_width, plot_top, plot_height) if full_data_view and rows else x_grid(x_min, x_max, center_index, plot_left, plot_width, plot_top, plot_height)}
   {''.join(event_lines)}
   {''.join(origin_lines)}
+  {volume_box}
   {equation_box}
   {center_marker}
   <path d="{path_for(oil, x_min, x_max, log_y_min, log_y_max, plot_left, plot_width, plot_top, plot_height)}" fill="none" stroke="{series_config["oil"]["color"]}" stroke-width="2.2"/>
