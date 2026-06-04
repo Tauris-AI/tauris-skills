@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from pathlib import Path
 
 
@@ -21,6 +22,7 @@ CANONICAL_PATHS = [
     "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/START_HERE.md",
     "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.example.json",
     "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.with_driver_override.example.json",
+    "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/aries_review_template.sqlite",
     "areas/aries",
     "areas/aries/skills/aries-core",
     "areas/aries/skills/aries-ac-economic",
@@ -41,6 +43,8 @@ COWORK_CONFIGS = [
     REPO_ROOT / "areas/aries/mcp-servers/aries-mcp/cowork_config.example.json",
     REPO_ROOT / "areas/forecasting/mcp-servers/forecasting-mcp/cowork_config.example.json",
 ]
+
+CLAUDE_PLUGIN_MANIFEST = REPO_ROOT / ".claude-plugin/plugin.json"
 
 
 def _markdown_paths(text: str) -> set[str]:
@@ -82,12 +86,48 @@ def test_phdwin_cowork_uses_32_bit_python() -> None:
     assert "-3.12-32" in args
 
 
+def test_claude_plugin_manifest_exists_without_marketplace() -> None:
+    data = json.loads(CLAUDE_PLUGIN_MANIFEST.read_text(encoding="utf-8"))
+    assert data["name"] == "tauris-skills"
+    assert data["version"]
+    assert data["guides"]
+    assert not (REPO_ROOT / "marketplace.json").exists()
+    assert not (REPO_ROOT / ".claude-plugin/marketplace.json").exists()
+
+
+def test_sqlite_review_template_opens() -> None:
+    template = REPO_ROOT / "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/aries_review_template.sqlite"
+    with sqlite3.connect(template) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        required = {
+            "TEMPLATE_METADATA",
+            "AC_PROPERTY",
+            "AC_OWNERSHIP",
+            "AC_FORECAST",
+            "AC_PRODUCTION_HISTORY",
+            "AC_ECONOMIC",
+            "AC_PRICE_DECK",
+            "AC_COST",
+            "AC_CAPITAL",
+            "AC_TAX",
+            "AC_GROUP_MEMBER",
+        }
+        assert required.issubset(tables)
+        metadata = dict(connection.execute("SELECT key, value FROM TEMPLATE_METADATA"))
+        assert metadata["not_vendor_schema"] == "true"
+
+
 def main() -> int:
     test_plugin_guides_exist()
     test_canonical_paths_exist()
     test_plugin_guide_references_resolve()
     test_cowork_configs_parse()
     test_phdwin_cowork_uses_32_bit_python()
+    test_claude_plugin_manifest_exists_without_marketplace()
+    test_sqlite_review_template_opens()
     print("Plugin integrity tests passed.")
     return 0
 

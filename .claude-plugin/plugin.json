@@ -1,0 +1,44 @@
+{
+  "name": "tauris-skills",
+  "version": "0.1.0",
+  "description": "Petroleum engineering skills, MCP server adapters, and review templates for Tauris workflows.",
+  "author": "Tauris AI",
+  "license": "MIT",
+  "homepage": "https://github.com/Tauris-AI/tauris-skills",
+  "keywords": [
+    "petroleum-engineering",
+    "forecasting",
+    "phdwin",
+    "aries",
+    "petroleum-economics",
+    "mcp"
+  ],
+  "guides": [
+    "plugins/claude-cowork/phdwin-v2/INSTALL.md",
+    "plugins/claude-cowork/aries/INSTALL.md",
+    "plugins/claude-cowork/forecasting/INSTALL.md",
+    "plugins/claude-cowork/petroleum-economics/INSTALL.md",
+    "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/START_HERE.md"
+  ],
+  "areas": [
+    {
+      "name": "phdwin-v2",
+      "path": "areas/phdwin-v2",
+      "mcpServer": "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/scripts/phdwin_mcp_server.py"
+    },
+    {
+      "name": "aries",
+      "path": "areas/aries",
+      "mcpServer": "areas/aries/mcp-servers/aries-mcp/aries_mcp.py"
+    },
+    {
+      "name": "forecasting",
+      "path": "areas/forecasting",
+      "mcpServer": "areas/forecasting/mcp-servers/forecasting-mcp/forecasting_mcp.py"
+    },
+    {
+      "name": "petroleum-economics",
+      "path": "areas/petroleum-economics"
+    }
+  ]
+}
