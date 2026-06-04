@@ -1,0 +1,55 @@
+{
+  "viewName": "engineering_log_centered_handoff",
+  "plot": {
+    "width": 1120,
+    "height": 620,
+    "left": 70,
+    "top": 90,
+    "plotWidth": 980,
+    "plotHeight": 420,
+    "forecastDays": 180,
+    "minHistoryDays": 60,
+    "logY": true,
+    "logSpanDecades": 2.8,
+    "centerForecastHandoff": true
+  },
+  "series": {
+    "oil": {
+      "column": "OIL - Resolver",
+      "color": "#008000",
+      "label": "Oil"
+    },
+    "gas": {
+      "column": "GAS - Resolver",
+      "color": "#ff0000",
+      "label": "Gas"
+    },
+    "water": {
+      "column": "WATER - Resolver",
+      "color": "#0000ff",
+      "label": "Water"
+    },
+    "casingPressure": {
+      "column": "Well.Pressure.Casing - Resolver",
+      "color": "#008b8b",
+      "label": "Casing P"
+    },
+    "tubingPressure": {
+      "column": "Well.Pressure.Tubing - Resolver",
+      "color": "#00a6a6",
+      "label": "Tubing P"
+    },
+    "pumpIntakePressure": {
+      "column": "Well.Pressure.PumpIntake - Resolver",
+      "color": "#5f7682",
+      "label": "Pump Intake P"
+    }
+  },
+  "guides": {
+    "syntheticEventColor": "#888888",
+    "forecastOriginColor": "#8a2be2",
+    "fitGuideColor": "#111111",
+    "projectionGuideColor": "#000000",
+    "centerMarkerColor": "#000000"
+  }
+}

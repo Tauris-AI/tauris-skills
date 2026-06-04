@@ -13,7 +13,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from forecasting_mcp import convert_decline_convention, profile_and_recommend  # noqa: E402
 from generate_forecasting_synthetic_data import FIELDNAMES, generate_well  # noqa: E402
-from generate_forecasting_sample_plots import render_svg  # noqa: E402
+from generate_forecasting_sample_plots import load_chart_config, render_svg  # noqa: E402
 
 
 def test_profile_and_recommend_detects_pressure_and_multiple_origins() -> None:
@@ -93,9 +93,11 @@ def test_sample_plot_renderer_returns_svg() -> None:
         "recommendedMethod": "pressure_aware_review_then_arps_hyp_to_exp",
         "reasons": ["Synthetic plot smoke test."],
     }
-    svg = render_svg("SYNTH TEST PLOT", rows, profile, recommendation)
+    config = load_chart_config(REPO_ROOT / "areas/forecasting/mcp-servers/forecasting-mcp/chart_config.default.json")
+    svg = render_svg("SYNTH TEST PLOT", rows, profile, recommendation, config=config)
     assert svg.startswith("<svg")
     assert "SYNTH TEST PLOT" in svg
+    assert "straight projection guide" in svg
 
 
 def main() -> int:
