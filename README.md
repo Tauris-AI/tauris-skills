@@ -11,6 +11,8 @@ This repository is intended to be the source of truth for curated domain skills 
 - `.github/copilot-instructions.md` and `.github/prompts/` provide Copilot-facing adapters.
 - `docs/` contains curation guidance for keeping the skills accurate and safe.
 
+Use area docs as the canonical source when updating domain behavior. Use plugin docs only to describe how a tool loads or invokes that behavior.
+
 ## Areas
 
 - `areas/aries`: ARIES concepts, Access table contracts, economic table review, and ARIES skill setup.

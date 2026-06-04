@@ -12,3 +12,5 @@ This catalog groups the repo by petroleum workflow. Each area owns its skills, M
 ## Packaging Rule
 
 Area folders should contain orientation and routing docs plus the implementation files needed for that workflow. Keep generated client data, extracted databases, and local review outputs out of git.
+
+When an area has both a skill and an MCP server, the skill should describe reviewer workflow and judgment while the MCP server provides callable data access or calculations.

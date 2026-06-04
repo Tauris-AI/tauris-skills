@@ -10,3 +10,5 @@ Install guides for using Tauris skills in Claude Cowork.
 - `petroleum-economics`: work-in-progress, prompt-only skill package for system-agnostic economics review.
 
 Each plugin guide references canonical files under `areas/`. Keep edits to skills, MCP servers, and references in `areas/`, then update these guides only when Cowork setup changes.
+
+Use these guides as adapters for Cowork. Do not treat them as the durable source for petroleum engineering assumptions or workflow rules.

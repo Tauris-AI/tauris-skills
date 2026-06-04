@@ -12,6 +12,9 @@ private/
 # Local planning
 docs/planning.md
 
+# Local helper scripts
+scripts/
+
 # Raw database exports and local data
 *.bak
 *.bacpac
