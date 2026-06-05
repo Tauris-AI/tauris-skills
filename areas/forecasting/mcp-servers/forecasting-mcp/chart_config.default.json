@@ -1,65 +1,102 @@
 {
-  "viewName": "engineering_log_centered_handoff",
-  "referenceImage": "areas/forecasting/assets/engineering_log_decline_plot_reference.png",
-  "notes": [
-    "Use the reference image as the canonical final-plot style.",
-    "Generated SVGs are experimental scaffolding only and should not be treated as the target view."
-  ],
-  "plot": {
-    "width": 1120,
-    "height": 620,
-    "left": 70,
-    "top": 90,
-    "plotWidth": 980,
-    "plotHeight": 420,
-    "forecastDays": 180,
-    "forecastYears": 30,
-    "axisStartMonthsBeforeFirstProduction": 12,
-    "axisSpanYears": 30,
-    "minHistoryDays": 60,
-    "logY": true,
-    "logSpanDecades": 2.8,
-    "centerForecastHandoff": true,
-    "fullDataView": true,
-    "showSyntheticEvents": false
-  },
-  "series": {
-    "oil": {
-      "column": "OIL - Resolver",
-      "color": "#008000",
-      "label": "Oil"
+    "viewName": "engineering_log_centered_handoff",
+    "referenceImage": "areas/forecasting/assets/engineering_log_decline_plot_reference.png",
+    "notes": [
+        "Use the reference image as the canonical final-plot style.",
+        "Generated SVGs are experimental scaffolding only and should not be treated as the target view."
+    ],
+    "plot": {
+        "width": 1120,
+        "height": 700,
+        "left": 72,
+        "top": 116,
+        "right": 920,
+        "bottom": 438,
+        "clipForecastBelowAxis": true,
+        "forecastYears": 30,
+        "logY": true,
+        "fullDataView": true
     },
-    "gas": {
-      "column": "GAS - Resolver",
-      "color": "#ff0000",
-      "label": "Gas"
+    "forecast": {
+        "years": 30,
+        "stepYears": 0.08333333333333333,
+        "terminalNominalDeclineAnnual": 0.06,
+        "yellowTailWapeThreshold": 0.5
     },
-    "water": {
-      "column": "WATER - Resolver",
-      "color": "#0000ff",
-      "label": "Water"
+    "lifecycle": {
+        "earlyStagePositivePrimaryMonths": 6
     },
-    "casingPressure": {
-      "column": "Well.Pressure.Casing - Resolver",
-      "color": "#008b8b",
-      "label": "Casing P"
+    "series": {
+        "oil": {
+            "column": "OIL - Resolver",
+            "color": "#288246",
+            "label": "Oil"
+        },
+        "gas": {
+            "column": "GAS - Resolver",
+            "color": "#be4137",
+            "label": "Gas"
+        },
+        "water": {
+            "column": "WATER - Resolver",
+            "color": "#2d69b4",
+            "label": "Water"
+        }
     },
-    "tubingPressure": {
-      "column": "Well.Pressure.Tubing - Resolver",
-      "color": "#d63384",
-      "label": "Tubing P"
+    "ratios": {
+        "enabled": true,
+        "rightAxisMinDefault": 0.1,
+        "matchLeftAxisCycles": true,
+        "colors": {
+            "GOR": "#dc379b",
+            "WOR_WGR": "#00918c"
+        },
+        "axisLabels": {
+            "left": "Rate (LH)",
+            "right": "Ratio (RH)"
+        }
     },
-    "pumpIntakePressure": {
-      "column": "Well.Pressure.PumpIntake - Resolver",
-      "color": "#5f7682",
-      "label": "Pump Intake P"
+    "pressure": {
+        "enabledWhenAvailable": true,
+        "axis": "right",
+        "notes": [
+            "Pressure is not present in the current monthly Enverus upload.",
+            "When pressure data is available, show it as context and QC evidence, not as a standalone physics forecast.",
+            "Synthetic pressure diagnostic contexts already used for chart/QC design: no_pressure_diagnostic, depletion_supported, possible_constraint_or_operational_issue, drawdown_or_recompletion_response, hidden_depletion_risk, operationally_unstable."
+        ],
+        "series": {
+            "casingPressure": {
+                "column": "Well.Pressure.Casing - Resolver",
+                "color": "#9a6a24",
+                "label": "Casing P"
+            },
+            "tubingPressure": {
+                "column": "Well.Pressure.Tubing - Resolver",
+                "color": "#7d62b4",
+                "label": "Tubing P"
+            },
+            "pumpIntakePressure": {
+                "column": "Well.Pressure.PumpIntake - Resolver",
+                "color": "#607d80",
+                "label": "Pump Intake P"
+            }
+        }
+    },
+    "qcColors": {
+        "Green": "#208a4a",
+        "Yellow": "#b98414",
+        "Red": "#b92d2d"
+    },
+    "legend": {
+        "x": 982,
+        "lineLength": 22,
+        "fontSize": 10
+    },
+    "guides": {
+        "syntheticEventColor": "#888888",
+        "forecastOriginColor": "#8a2be2",
+        "fitGuideColor": "#111111",
+        "projectionGuideColor": "#000000",
+        "centerMarkerColor": "#000000"
     }
-  },
-  "guides": {
-    "syntheticEventColor": "#888888",
-    "forecastOriginColor": "#8a2be2",
-    "fitGuideColor": "#111111",
-    "projectionGuideColor": "#000000",
-    "centerMarkerColor": "#000000"
-  }
 }
