@@ -719,13 +719,19 @@ def read_aries_sqlite_tables(aries_sqlite: Path) -> dict[str, list[dict[str, Any
     return tables
 
 
+def _clean_name(value: Any) -> str:
+    # Access catalog names can come back utf-16-le; under latin-1 decode that
+    # interleaves NUL bytes. Strip NULs so names match template columns.
+    return str(value).replace("\x00", "")
+
+
 def access_columns(cursor: Any, table_name: str) -> list[str]:
     columns = []
     for row in cursor.columns(table=table_name):
         try:
-            columns.append(str(row.column_name))
+            columns.append(_clean_name(row.column_name))
         except AttributeError:
-            columns.append(str(row[3]))
+            columns.append(_clean_name(row[3]))
     return columns
 
 
@@ -733,9 +739,9 @@ def access_table_names(cursor: Any) -> set[str]:
     names = set()
     for row in cursor.tables(tableType="TABLE"):
         try:
-            names.add(str(row.table_name).upper())
+            names.add(_clean_name(row.table_name).upper())
         except AttributeError:
-            names.add(str(row[2]).upper())
+            names.add(_clean_name(row[2]).upper())
     return names
 
 
