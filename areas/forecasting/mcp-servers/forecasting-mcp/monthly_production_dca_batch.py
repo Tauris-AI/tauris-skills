@@ -421,6 +421,10 @@ def fit_arps_candidate(times: list[float], rates: list[float], start_index: int,
         "b": b,
         "origin_index": start_index,
         "origin_year": times[start_index],
+        "tail_start_index": tail_idx[0],
+        "tail_end_index": tail_idx[-1],
+        "tail_start_year": times[tail_idx[0]],
+        "tail_end_year": times[tail_idx[-1]],
         "tail_wape": tail_wape,
         "tail_rmse": rmse(tail_actual, tail_pred),
         "tail_r2": r_squared(tail_actual, tail_pred),
@@ -726,7 +730,7 @@ def write_chart(
     draw.text((992, 33), summary["QC"], fill=qc_color, font=FONT_BOLD)
     has_forecast = any(future and future[0] and future[1] for future in (oil_future, gas_future, water_future))
     tail_wape = f"{summary['PrimaryTailWAPEPercent']}%" if summary.get("PrimaryTailWAPEPercent") not in (None, "") else "n/a"
-    line1 = f"Primary product: {primary} | Method used: {summary['PrimaryMethodUsed']} | Tail WAPE: {tail_wape}"
+    line1 = f"Primary product: {primary} | Method used: {summary['PrimaryMethodUsed']} | Recent fit error: {tail_wape}"
     line2 = f"No pressure data in monthly upload | Gas: {summary['GasRatioMethod']} | Water: {summary['WaterRatioMethod']}"
     if not has_forecast:
         line2 = f"{summary.get('LifecycleStage', 'History only')} | Insufficient points for DCA shape | Type curve or nearby-offset proxy needed later"
@@ -755,6 +759,16 @@ def write_chart(
     def sy(q: float) -> float:
         q = max(q, y_min)
         return bottom - (math.log10(q) - math.log10(y_min)) / (math.log10(y_max) - math.log10(y_min)) * (bottom - top)
+
+    tail_start_year = parse_float(summary.get("RecentFitStartYear"))
+    tail_end_year = parse_float(summary.get("RecentFitEndYear"))
+    if tail_start_year is not None and tail_end_year is not None and tail_end_year >= tail_start_year:
+        band_left = max(left, min(right, sx(tail_start_year)))
+        band_right = max(left, min(right, sx(tail_end_year)))
+        if band_right - band_left >= 1:
+            draw.rectangle((band_left, top, band_right, bottom), fill=(238, 238, 238))
+            draw.text((band_left + 4, top + 6), "recent fit", fill=(100, 100, 100), font=FONT_TINY)
+            draw.rectangle(plot, outline=(120, 120, 120), width=1)
 
     def ratio_points(numerator: list[float], denominator: list[float], point_times: list[float]) -> list[tuple[float, float]]:
         return [(t, n / d) for t, n, d in zip(point_times, numerator, denominator) if n > 0 and d > 0]
@@ -973,6 +987,8 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
                         "EffectiveAnnualDi": round(candidate["annual_di_effective"], 6),
                         "BFactor": candidate["b"],
                         "OriginMonthIndex": candidate["origin_index"] + 1,
+                        "RecentFitStartMonthIndex": candidate["tail_start_index"] + 1,
+                        "RecentFitEndMonthIndex": candidate["tail_end_index"] + 1,
                     }
                 )
 
@@ -1046,6 +1062,10 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
             "PrimaryTailWAPEPercent": round(best["tail_wape"] * 100.0, 2) if best and best.get("tail_wape") is not None else "",
             "PrimaryTailRMSE": fmt_metric(best.get("tail_rmse") if best else None),
             "PrimaryTailR2": fmt_metric(best.get("tail_r2") if best else None, 3),
+            "RecentFitStartMonthIndex": best["tail_start_index"] + 1 if best else "",
+            "RecentFitEndMonthIndex": best["tail_end_index"] + 1 if best else "",
+            "RecentFitStartYear": round(best["tail_start_year"], 6) if best else "",
+            "RecentFitEndYear": round(best["tail_end_year"], 6) if best else "",
             "PrimaryProductQi": round(best["qi"], 6) if best else "",
             "PrimaryNominalDiAnnual": round(best["di_nominal_annual"], 6) if best else "",
             "PrimaryEffectiveAnnualDiPercent": round(best["annual_di_effective"] * 100.0, 2) if best else "",
