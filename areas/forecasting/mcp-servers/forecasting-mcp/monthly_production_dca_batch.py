@@ -669,6 +669,18 @@ def primary_life_years(times: list[float], primary: str, primary_future: tuple[l
     return primary_future[0][-1]
 
 
+def primary_life_limit_label(primary: str) -> str:
+    life_limit_rates = CHART_CONFIG.get("forecast", {}).get("lifeLimitRates", {})
+    if isinstance(life_limit_rates, dict):
+        limit = parse_float(life_limit_rates.get(primary))
+    else:
+        limit = None
+    if limit is None or limit <= 0:
+        limit = 1.0 if primary == "Oil" else 10.0
+    unit = "BOPD" if primary == "Oil" else "MCFD"
+    return f"{limit:g} {unit}"
+
+
 def candidate_forecast_volume(candidate: dict[str, Any], times: list[float]) -> float:
     return remaining_volume(forecast_series(candidate, times)[1])
 
@@ -1109,7 +1121,7 @@ def write_chart(
         f"Hist + Fcast Oil: {summary['EUR_Oil_BBL']:,.0f} bbl",
         f"Hist + Fcast Gas: {summary['EUR_Gas_MCF']:,.0f} mcf",
         f"EUR: {summary['EUR_MBOE_6to1']:,.1f} MBOE",
-        f"Life: {summary.get('TotalLifeYears', 'n/a')} yrs",
+        f"Life @ {primary_life_limit_label(summary['PrimaryProduct'])}: {summary.get('TotalLifeYears', 'n/a')} yrs",
         f"EUR/ft: {summary['EUR_MBOEPerFT']:,.2f} MBOE/ft" if summary["EUR_MBOEPerFT"] else "EUR/ft: n/a",
     ]
     for i, text in enumerate(eur_lines):
