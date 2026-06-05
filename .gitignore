@@ -1,6 +1,10 @@
 # Secrets and local configuration
 .env
 .env.*
+!**/.claude-plugin/
+!**/.claude-plugin/**
+!**/.mcp.json
+!.claude-plugin/marketplace.json
 *.pem
 *.key
 *.pfx

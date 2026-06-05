@@ -1,53 +1,64 @@
 # PHDWin v2 Claude Cowork Plugin
 
-Installs the PHDWin v2 MCP server for Claude Cowork.
-
-## Canonical Files
-
-- Area: `areas/phdwin-v2`
-- MCP server: `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP`
-- Start guide: `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/START_HERE.md`
-- Cowork config: `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.example.json`
-- Driver override config: `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.with_driver_override.example.json`
+Installs the PHDWin v2 skills and MCP server from the `tauris-skills` Cowork marketplace.
 
 ## Install
 
-1. Clone or unpack this repo to:
+Add the marketplace from GitHub:
 
 ```text
-C:\Dev\tauris-skills
+/plugin marketplace add Tauris-AI/tauris-skills
 ```
 
-2. Install the Python packages in the Windows Python environment Cowork will launch:
+Or add it from a local checkout:
+
+```text
+/plugin marketplace add "<local repo path>"
+```
+
+Install the plugin:
+
+```text
+/plugin install phdwin-v2@tauris-skills
+```
+
+Fully restart Cowork after installing.
+
+## Marketplace Cache
+
+Important: Cowork caches the marketplace catalog when you add it. After editing `.claude-plugin/marketplace.json` or adding a new plugin, restarting the app is not enough. Force Cowork to re-read the catalog:
+
+```text
+/plugin marketplace remove tauris-skills
+/plugin marketplace add <github-or-local>
+```
+
+Then reinstall the affected plugins.
+
+## Python
+
+`phdwin-v2` requires a side-by-side 32-bit Python 3.12 for the Clarion/TopSpeed ODBC driver. Verify it is available:
+
+```cmd
+py --list
+```
+
+Install dependencies into that interpreter:
 
 ```cmd
 py -3.12-32 -m pip install -r C:\Dev\tauris-skills\areas\phdwin-v2\mcp-servers\PHDWinv2_MCP\requirements.txt
 ```
 
-3. For native `.phd` / `.mod` extraction, confirm the 32-bit SoftVelocity TopSpeed ODBC driver is visible:
+Confirm the 32-bit SoftVelocity TopSpeed ODBC driver is visible:
 
 ```cmd
 py -3.12-32 -c "import pyodbc; [print(d) for d in pyodbc.drivers()]"
 ```
 
-4. Open Claude Cowork -> Settings -> Developer -> Edit Config.
-
-5. Merge the `phdwin-v2` entry from:
-
-```text
-C:\Dev\tauris-skills\areas\phdwin-v2\mcp-servers\PHDWinv2_MCP\cowork_config.example.json
-```
-
-Use `cowork_config.with_driver_override.example.json` when the driver name must be pinned.
-
-6. Fully restart Claude Cowork.
+Cowork launches the server with `py -3.12-32` from `areas/phdwin-v2/.mcp.json`.
 
 ## First Prompt
 
 ```text
 Use the phdwin-v2 MCP server. Run env_check and tell me whether this machine is ready to inspect PHDWin v2 sources and create SQLite review artifacts.
 ```
-
-## Notes
-
-The Clarion / TopSpeed driver is only needed to create SQLite review databases from native PHDWin files. Once a SQLite review database exists, Cowork can inspect and convert review artifacts without the driver.

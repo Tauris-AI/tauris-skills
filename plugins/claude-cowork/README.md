@@ -1,14 +1,64 @@
 # Claude Cowork Plugins
 
-Install guides for using Tauris skills in Claude Cowork.
+This repo publishes a Claude Cowork marketplace named `tauris-skills`.
+Cowork installs four plugins from that marketplace:
 
-## Plugins
+- `phdwin-v2`
+- `aries`
+- `forecasting`
+- `petroleum-economics`
 
-- `phdwin-v2`: local MCP server for PHDWin v2 inspection, SQLite review export, and PHDWin-to-Aries review artifacts.
-- `aries`: local MCP server for ARIES Access inspection plus ARIES skill instructions.
-- `forecasting`: local MCP server for production/pressure profiling and forecast method recommendation.
-- `petroleum-economics`: work-in-progress, prompt-only skill package for system-agnostic economics review.
+## Install
 
-Each plugin guide references canonical files under `areas/`. Keep edits to skills, MCP servers, and references in `areas/`, then update these guides only when Cowork setup changes.
+Add the marketplace from GitHub:
 
-Use these guides as adapters for Cowork. Do not treat them as the durable source for petroleum engineering assumptions or workflow rules.
+```text
+/plugin marketplace add Tauris-AI/tauris-skills
+```
+
+Or add it from a local checkout:
+
+```text
+/plugin marketplace add "<local repo path>"
+```
+
+Install the plugins:
+
+```text
+/plugin install phdwin-v2@tauris-skills
+/plugin install aries@tauris-skills
+/plugin install forecasting@tauris-skills
+/plugin install petroleum-economics@tauris-skills
+```
+
+Fully restart Cowork after installing.
+
+## Marketplace Cache
+
+Important: Cowork caches the marketplace catalog when you add it. After editing `.claude-plugin/marketplace.json` or adding a new plugin, restarting the app is not enough. Force Cowork to re-read the catalog:
+
+```text
+/plugin marketplace remove tauris-skills
+/plugin marketplace add <github-or-local>
+```
+
+Then reinstall the affected plugins.
+
+## Python
+
+`phdwin-v2` needs a side-by-side 32-bit Python 3.12 because the Clarion/TopSpeed ODBC driver is 32-bit:
+
+```cmd
+py --list
+py -3.12-32 -m pip install -r C:\Dev\tauris-skills\areas\phdwin-v2\mcp-servers\PHDWinv2_MCP\requirements.txt
+```
+
+`aries` and `forecasting` use 64-bit Python 3.12:
+
+```cmd
+py -3.12 -m pip install fastmcp pyodbc
+```
+
+## Plugin Sources
+
+Each Cowork plugin source is an `areas/<name>` folder. Cowork discovers skills from the plugin's `skills/` directory and MCP servers from `.mcp.json` at the plugin root. `petroleum-economics` is skill-only and does not have an MCP config.

@@ -1,44 +1,53 @@
 # Forecasting Claude Cowork Plugin
 
-Installs the forecasting MCP server for Claude Cowork.
-
-## Canonical Files
-
-- Area: `areas/forecasting`
-- Skill: `areas/forecasting/skills/auto-forecasting`
-- MCP server: `areas/forecasting/mcp-servers/forecasting-mcp`
-- Cowork config: `areas/forecasting/mcp-servers/forecasting-mcp/cowork_config.example.json`
+Installs the forecasting skill and MCP server from the `tauris-skills` Cowork marketplace.
 
 ## Install
 
-1. Clone or unpack this repo to:
+Add the marketplace from GitHub:
 
 ```text
-C:\Dev\tauris-skills
+/plugin marketplace add Tauris-AI/tauris-skills
 ```
 
-2. Install Python packages:
+Or add it from a local checkout:
+
+```text
+/plugin marketplace add "<local repo path>"
+```
+
+Install the plugin:
+
+```text
+/plugin install forecasting@tauris-skills
+```
+
+Fully restart Cowork after installing.
+
+## Marketplace Cache
+
+Important: Cowork caches the marketplace catalog when you add it. After editing `.claude-plugin/marketplace.json` or adding a new plugin, restarting the app is not enough. Force Cowork to re-read the catalog:
+
+```text
+/plugin marketplace remove tauris-skills
+/plugin marketplace add <github-or-local>
+```
+
+Then reinstall the affected plugins.
+
+## Python
+
+`forecasting` uses Python 3.12:
 
 ```cmd
+py --list
 py -3.12 -m pip install fastmcp
 ```
 
-3. Open Claude Cowork -> Settings -> Developer -> Edit Config.
-
-4. Merge the `forecasting-mcp` entry from:
-
-```text
-C:\Dev\tauris-skills\areas\forecasting\mcp-servers\forecasting-mcp\cowork_config.example.json
-```
-
-5. Fully restart Claude Cowork.
+Cowork launches the server with `py -3.12` from `areas/forecasting/.mcp.json`.
 
 ## First Prompt
 
 ```text
 Use the forecasting-mcp server. Profile this production CSV, identify available oil/gas/water and pressure signals, recommend eligible forecast method families per well, identify candidate forecast origins, and flag wells that need human review before automated fitting.
 ```
-
-## Notes
-
-This plugin supports limited-data production forecasting. It should use AI to help write and choose forecasting methods, fit-window logic, and QC explanations. It should not pretend to run a full reservoir-engineering calculation when reservoir, PVT, completion, pressure-transient, or operating details are missing.

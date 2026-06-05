@@ -1,31 +1,52 @@
 # Petroleum Economics Claude Cowork Plugin
 
-Installs the petroleum economics review skill as a Cowork prompt/context workflow. This plugin is a work in progress and does not require an MCP server.
-
-## Canonical Files
-
-- Area: `areas/petroleum-economics`
-- Skill: `areas/petroleum-economics/skills/petroleum-economics-review`
-- Setup guide: `areas/petroleum-economics/SME_SETUP_GUIDE.md`
+Installs the petroleum economics review skill from the `tauris-skills` Cowork marketplace. This plugin is skill-only and does not have an MCP server.
 
 ## Install
 
-1. Clone or unpack this repo to:
+Add the marketplace from GitHub:
 
 ```text
-C:\Dev\tauris-skills
+/plugin marketplace add Tauris-AI/tauris-skills
 ```
 
-2. In Claude Cowork, add the repo or the petroleum economics area as project context when available.
+Or add it from a local checkout:
 
-3. Start Cowork with the recommended prompt below and include source economics files as local attachments or local file paths.
+```text
+/plugin marketplace add "<local repo path>"
+```
+
+Install the plugin:
+
+```text
+/plugin install petroleum-economics@tauris-skills
+```
+
+Fully restart Cowork after installing.
+
+## Marketplace Cache
+
+Important: Cowork caches the marketplace catalog when you add it. After editing `.claude-plugin/marketplace.json` or adding a new plugin, restarting the app is not enough. Force Cowork to re-read the catalog:
+
+```text
+/plugin marketplace remove tauris-skills
+/plugin marketplace add <github-or-local>
+```
+
+Then reinstall the affected plugins.
+
+## Python
+
+No Python interpreter or MCP dependencies are required for this skill-only plugin. For the other plugins, verify Python installs with:
+
+```cmd
+py --list
+```
+
+`phdwin-v2` needs `py -3.12-32`; `aries` and `forecasting` use `py -3.12`.
 
 ## First Prompt
 
 ```text
-Use the petroleum economics area in this repo. Start with areas/petroleum-economics/skills/petroleum-economics-review/SKILL.md. Review the supplied economics assumptions and outputs, separate source evidence from assumptions, and identify missing ownership, price, tax, forecast, cost, capital, and payout details.
+Use the petroleum economics review skill. Review the supplied economics assumptions and outputs, separate source evidence from assumptions, and identify missing ownership, price, tax, forecast, cost, capital, and payout details.
 ```
-
-## Notes
-
-Use this plugin for system-agnostic review across PHDWin, ARIES, spreadsheets, CSV exports, reserves databases, or written assumptions. Treat outputs as review notes while the plugin matures. Use the PHDWin v2 or ARIES plugins when the work needs system-specific local database inspection.

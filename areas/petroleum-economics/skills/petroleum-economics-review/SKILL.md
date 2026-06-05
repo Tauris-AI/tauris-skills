@@ -1,6 +1,6 @@
 ---
 name: petroleum-economics-review
-description: Use only for system-agnostic petroleum economics reasonableness review: forecasts, price decks, ownership, costs, capital, taxes, reserves, cash flow, and economics QA after data has already been extracted or normalized. Do not use for PHDWin extraction, PHDWin-to-Aries conversion, ARIES Access contracts, or ARIES economic-line editing; use the PHDWin and ARIES skills first for those.
+description: "Use only for system-agnostic petroleum economics reasonableness review: forecasts, price decks, ownership, costs, capital, taxes, reserves, cash flow, and economics QA after data has already been extracted or normalized. Do not use for PHDWin extraction, PHDWin-to-Aries conversion, ARIES Access contracts, or ARIES economic-line editing; use the PHDWin and ARIES skills first for those."
 ---
 
 # Petroleum Economics Review

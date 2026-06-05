@@ -1,6 +1,6 @@
 ---
 name: auto-forecasting
-description: Use for production auto-forecasting workflow design and review: profiling multi-well production/pressure datasets, selecting eligible decline or hybrid method families, assigning QC confidence, and routing wells for human forecast review. Do not use for PHDWin extraction or ARIES table editing.
+description: "Use for production auto-forecasting workflow design and review: profiling multi-well production/pressure datasets, selecting eligible decline or hybrid method families, assigning QC confidence, and routing wells for human forecast review. Do not use for PHDWin extraction or ARIES table editing."
 ---
 
 # Auto Forecasting
