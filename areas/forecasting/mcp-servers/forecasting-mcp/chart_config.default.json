@@ -21,11 +21,23 @@
     "forecast": {
         "years": 30,
         "stepYears": 0.08333333333333333,
+        "terminalEffectiveAnnualDecline": 0.08,
         "terminalNominalDeclineAnnual": 0.06,
         "yellowTailWapeThreshold": 0.3,
         "redTailWapeThreshold": 0.6,
         "yellowIfTailR2Below": 0,
-        "recentOutlierLowRatio": 0.2
+        "recentOutlierLowRatio": 0.2,
+        "preferPeakHyperbolic": true,
+        "peakHyperbolicMinPositiveMonths": 36,
+        "peakHyperbolicMaxTailWapePenalty": 0.025,
+        "peakHyperbolicMaxTailWapeRatio": 1.75,
+        "peakHyperbolicMaxPeakMonthIndex": 6,
+        "peakHyperbolicMinPeakToCurrentRatio": 3.0,
+        "peakHyperbolicMinPrimaryForecastVolumeRatio": 1.0,
+        "lifeLimitRates": {
+            "Oil": 1.0,
+            "Gas": 10.0
+        }
     },
     "lifecycle": {
         "earlyStagePositivePrimaryMonths": 6

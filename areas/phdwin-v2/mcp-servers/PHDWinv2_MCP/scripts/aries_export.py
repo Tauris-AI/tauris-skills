@@ -771,6 +771,9 @@ def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path
 
     conn_str = f"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};Dbq={output_path};Pooling=false"
     with pyodbc.connect(conn_str, autocommit=False) as conn:
+        conn.setdecoding(pyodbc.SQL_CHAR, encoding="utf-8")
+        conn.setdecoding(pyodbc.SQL_WCHAR, encoding="utf-8")
+        conn.setencoding(encoding="utf-8")
         cursor = conn.cursor()
         available_tables = access_table_names(cursor)
         for table_name in EXPORT_TABLE_ORDER:

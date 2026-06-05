@@ -47,11 +47,20 @@ DEFAULT_BATCH_CONFIG: dict[str, Any] = {
     "forecast": {
         "years": 30.0,
         "stepYears": 1.0 / 12.0,
+        "terminalEffectiveAnnualDecline": 0.08,
         "terminalNominalDeclineAnnual": 0.06,
         "yellowTailWapeThreshold": 0.30,
         "redTailWapeThreshold": 0.60,
         "yellowIfTailR2Below": 0.0,
         "recentOutlierLowRatio": 0.2,
+        "preferPeakHyperbolic": True,
+        "peakHyperbolicMinPositiveMonths": 36,
+        "peakHyperbolicMaxTailWapePenalty": 0.025,
+        "peakHyperbolicMaxTailWapeRatio": 1.75,
+        "peakHyperbolicMaxPeakMonthIndex": 6,
+        "peakHyperbolicMinPeakToCurrentRatio": 3.0,
+        "peakHyperbolicMinPrimaryForecastVolumeRatio": 1.0,
+        "lifeLimitRates": {"Oil": 1.0, "Gas": 10.0},
     },
     "lifecycle": {
         "earlyStagePositivePrimaryMonths": 6,
@@ -376,16 +385,29 @@ def ratio_bounds(numerator_future: tuple[list[float], list[float]] | None, denom
     return values[0], values[-1]
 
 
+def terminal_nominal_decline() -> float:
+    effective = parse_float(CHART_CONFIG.get("forecast", {}).get("terminalEffectiveAnnualDecline"))
+    if effective is not None and 0.0 < effective < 1.0:
+        return -math.log(1.0 - effective)
+    configured = parse_float(CHART_CONFIG.get("forecast", {}).get("terminalNominalDeclineAnnual"))
+    return configured if configured is not None and configured > 0 else TERMINAL_NOMINAL_D
+
+
+def terminal_effective_decline() -> float:
+    return 1.0 - math.exp(-terminal_nominal_decline())
+
+
 def arps_rate(qi: float, di: float, b: float, t: float) -> float:
     if qi <= 0:
         return 0.0
     if b <= 1e-9:
         return qi * math.exp(-di * t)
-    switch_t = max(0.0, (di / TERMINAL_NOMINAL_D - 1.0) / (b * di)) if di > TERMINAL_NOMINAL_D else 0.0
+    terminal_d = terminal_nominal_decline()
+    switch_t = max(0.0, (di / terminal_d - 1.0) / (b * di)) if di > terminal_d else 0.0
     if t <= switch_t:
         return qi / ((1.0 + b * di * t) ** (1.0 / b))
     q_switch = qi / ((1.0 + b * di * switch_t) ** (1.0 / b))
-    return q_switch * math.exp(-TERMINAL_NOMINAL_D * (t - switch_t))
+    return q_switch * math.exp(-terminal_d * (t - switch_t))
 
 
 def linear_fit(xs: list[float], ys: list[float]) -> tuple[float, float] | None:
@@ -472,7 +494,56 @@ def choose_fit(times: list[float], rates: list[float]) -> tuple[dict[str, Any] |
     if not candidates:
         return None, []
     candidates.sort(key=lambda item: (item["tail_wape"] if item["tail_wape"] is not None else 999.0, item["origin_index"]))
-    return candidates[0], candidates
+    recent_best = candidates[0]
+    recent_best["selection_basis"] = "best recent tail error"
+    recent_best["alternate_recent_method"] = ""
+    recent_best["alternate_recent_tail_wape"] = None
+
+    forecast_config = CHART_CONFIG.get("forecast", {})
+    if not forecast_config.get("preferPeakHyperbolic", True):
+        return recent_best, candidates
+
+    min_months = int(forecast_config.get("peakHyperbolicMinPositiveMonths", 36))
+    max_peak_index = int(forecast_config.get("peakHyperbolicMaxPeakMonthIndex", 6)) - 1
+    min_peak_to_current = float(forecast_config.get("peakHyperbolicMinPeakToCurrentRatio", 3.0))
+    max_wape_penalty = float(forecast_config.get("peakHyperbolicMaxTailWapePenalty", 0.025))
+    max_wape_ratio = float(forecast_config.get("peakHyperbolicMaxTailWapeRatio", 1.75))
+    min_volume_ratio = float(forecast_config.get("peakHyperbolicMinPrimaryForecastVolumeRatio", 1.0))
+
+    if len(positive) < min_months or peak_index > max_peak_index:
+        return recent_best, candidates
+
+    current_positive_rate = rates[positive[-1]]
+    if current_positive_rate <= 0 or rates[peak_index] / current_positive_rate < min_peak_to_current:
+        return recent_best, candidates
+
+    recent_wape = recent_best.get("tail_wape")
+    if recent_wape is None:
+        return recent_best, candidates
+
+    peak_hyperbolic = [
+        candidate
+        for candidate in candidates
+        if candidate["origin_index"] == peak_index and candidate["b"] > 0 and candidate.get("tail_wape") is not None
+    ]
+    if not peak_hyperbolic:
+        return recent_best, candidates
+
+    peak_best = sorted(peak_hyperbolic, key=lambda item: (item["tail_wape"], item["b"]))[0]
+    peak_wape = peak_best["tail_wape"]
+    if peak_wape <= recent_wape + max_wape_penalty or peak_wape <= recent_wape * max_wape_ratio:
+        recent_volume = candidate_forecast_volume(recent_best, times)
+        peak_volume = candidate_forecast_volume(peak_best, times)
+        if recent_volume > 0 and peak_volume < recent_volume * min_volume_ratio:
+            return recent_best, candidates
+        peak_best["selection_basis"] = "guarded peak-origin hyperbolic preference"
+        peak_best["alternate_recent_method"] = recent_best["method"]
+        peak_best["alternate_recent_tail_wape"] = recent_wape
+        peak_best["alternate_recent_forecast_volume"] = recent_volume
+        peak_best["forecast_volume_delta_vs_recent"] = peak_volume - recent_volume
+        return peak_best, candidates
+
+    return recent_best, candidates
 
 
 def smooth_ratio_model(times: list[float], numerator: list[float], denominator: list[float], ratio_name: str) -> dict[str, Any]:
@@ -570,6 +641,36 @@ def trim_forecast_tail(times: list[float], rates: list[float], min_positive_rate
 def remaining_volume(rate_series: list[float]) -> float:
     step_years = float(CHART_CONFIG["forecast"].get("stepYears", FCAST_STEP_YEARS))
     return sum(q * 365.25 * step_years for q in rate_series)
+
+
+def total_life_years(times: list[float], *futures: tuple[list[float], list[float]] | None) -> float:
+    endpoints = [times[-1]] if times else [0.0]
+    for future in futures:
+        if future and future[0] and future[1]:
+            endpoints.append(future[0][-1])
+    return max(endpoints)
+
+
+def primary_life_years(times: list[float], primary: str, primary_future: tuple[list[float], list[float]] | None) -> float:
+    if not times:
+        return 0.0
+    life_limit_rates = CHART_CONFIG.get("forecast", {}).get("lifeLimitRates", {})
+    if isinstance(life_limit_rates, dict):
+        limit = parse_float(life_limit_rates.get(primary))
+    else:
+        limit = None
+    if limit is None or limit <= 0:
+        limit = 1.0 if primary == "Oil" else 10.0
+    if not primary_future or not primary_future[0] or not primary_future[1]:
+        return times[-1]
+    for t, q in zip(primary_future[0], primary_future[1]):
+        if q < limit:
+            return t
+    return primary_future[0][-1]
+
+
+def candidate_forecast_volume(candidate: dict[str, Any], times: list[float]) -> float:
+    return remaining_volume(forecast_series(candidate, times)[1])
 
 
 def classify_lifecycle(primary_positive_months: int, best: dict[str, Any] | None) -> tuple[str, str, str]:
@@ -796,6 +897,16 @@ def write_chart(
     for future in (oil_future, gas_future, water_future):
         if future:
             values += [v for v in future[1] if v > 0]
+    selected_fit_rates: list[float] = []
+    if best:
+        fit_start = times[best["origin_index"]]
+        selected_fit_rates = [
+            arps_rate(best["qi"], best["di_nominal_annual"], best["b"], max(0.0, t - fit_start))
+            if t >= fit_start
+            else 0.0
+            for t in times
+        ]
+        values += [v for v in selected_fit_rates if v > 0]
     y_min = max(0.1, 10 ** math.floor(math.log10(min(values)))) if values else 0.1
     y_max = 10 ** math.ceil(math.log10(max(values))) if values else 1000
 
@@ -905,6 +1016,11 @@ def write_chart(
             tick *= 10
         draw_vertical_text(img, (right + 34, int((top + bottom) / 2) - 38), "Ratio (RH)", FONT_TINY, (70, 70, 70))
 
+    if best and selected_fit_rates:
+        primary_color = colors[primary]
+        fit_pts = visible_history_points(times, selected_fit_rates, y_min, sy)
+        draw_line(draw, fit_pts, primary_color, 1, dashed=True)
+
     for name, values_hist, future in (
         ("Oil", oil, oil_future),
         ("Gas", gas, gas_future),
@@ -982,7 +1098,7 @@ def write_chart(
             ]
         param_lines = [
             f"Qi: {summary['PrimaryProductQi']} | b: {summary['PrimaryBFactor']}",
-            f"Di eff: {summary['PrimaryEffectiveAnnualDiPercent']}% | Dmin: {float(CHART_CONFIG['forecast'].get('terminalNominalDeclineAnnual', TERMINAL_NOMINAL_D)) * 100:.1f}%",
+            f"Di eff: {summary['PrimaryEffectiveAnnualDiPercent']}% | Dmin: {terminal_effective_decline() * 100:.1f}%",
             f"Recent months: {summary['RecentFitStartMonthIndex']}-{summary['RecentFitEndMonthIndex']}",
         ] + primary_ratio_lines
     for i, text in enumerate(param_lines):
@@ -993,8 +1109,8 @@ def write_chart(
         f"Hist + Fcast Oil: {summary['EUR_Oil_BBL']:,.0f} bbl",
         f"Hist + Fcast Gas: {summary['EUR_Gas_MCF']:,.0f} mcf",
         f"EUR: {summary['EUR_MBOE_6to1']:,.1f} MBOE",
+        f"Life: {summary.get('TotalLifeYears', 'n/a')} yrs",
         f"EUR/ft: {summary['EUR_MBOEPerFT']:,.2f} MBOE/ft" if summary["EUR_MBOEPerFT"] else "EUR/ft: n/a",
-        "Basis: monthly DCA, no pressure diagnostics" if has_forecast else "Basis: history only; no DCA forecast generated",
     ]
     for i, text in enumerate(eur_lines):
         draw.text((745, panel_y + 32 + i * 21), text[:42], fill=(65, 65, 65), font=FONT_SMALL)
@@ -1132,6 +1248,9 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
         eur_gas = hist_gas + forecast_gas
         eur_mboe = (eur_oil + eur_gas / 6.0) / 1000.0
         eur_per_ft = eur_mboe / lateral if lateral and lateral > 0 else None
+        projection_end_years = total_life_years(times, oil_future, gas_future, water_future)
+        primary_future = gas_future if primary == "Gas" else oil_future
+        total_life = primary_life_years(times, primary, primary_future)
         summary = {
             "WellName": well,
             "QC": qc,
@@ -1144,6 +1263,14 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
             "RecentFitWarning": fit_warning,
             "RecommendedMethodFamily": rec.get("recommendedMethod") or "",
             "PrimaryMethodUsed": best["method"] if best else "no DCA fit generated",
+            "ForecastSelectionBasis": best.get("selection_basis", "") if best else "no DCA fit generated",
+            "AlternateRecentTailMethod": best.get("alternate_recent_method", "") if best else "",
+            "AlternateRecentTailWAPEPercent": round(best["alternate_recent_tail_wape"] * 100.0, 2)
+            if best and best.get("alternate_recent_tail_wape") is not None
+            else "",
+            "PrimaryForecastVolumeDeltaVsRecentTail": round(best.get("forecast_volume_delta_vs_recent", 0.0), 2)
+            if best and best.get("forecast_volume_delta_vs_recent") is not None
+            else "",
             "PressureDataAvailable": "No",
             "DataCadence": "monthly",
             "PrimaryTailWAPEPercent": round(best["tail_wape"] * 100.0, 2) if best and best.get("tail_wape") is not None else "",
@@ -1178,6 +1305,8 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
             "ForecastGas_MCF_30yr_DCA": round(forecast_gas, 2),
             "EUR_Gas_MCF": round(eur_gas, 2),
             "EUR_MBOE_6to1": round(eur_mboe, 3),
+            "TotalLifeYears": round(total_life, 2),
+            "ProjectionEndYears": round(projection_end_years, 2),
             "LateralLength_FT": lateral or "",
             "EUR_MBOEPerFT": round(eur_per_ft, 6) if eur_per_ft is not None else "",
             "ChartPath": "",
