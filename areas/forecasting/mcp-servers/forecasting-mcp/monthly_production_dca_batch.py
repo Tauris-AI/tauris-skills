@@ -883,13 +883,7 @@ def write_chart(
         draw.text((legend_x + 28, 177), "GOR (RH)", fill=(55, 55, 55), font=FONT_LEGEND)
         draw.line([(legend_x, 200), (legend_x + legend_line, 200)], fill=ratio_colors["WOR_WGR"], width=2)
         draw.text((legend_x + 28, 193), f"{ratio_label} (RH)", fill=(55, 55, 55), font=FONT_LEGEND)
-    if has_forecast:
-        style_y = 230 if ratio_axis else 184
-        draw.line([(legend_x, style_y), (legend_x + legend_line, style_y)], fill=(40, 40, 40), width=2)
-        draw.text((legend_x + 28, style_y - 7), "history", fill=(55, 55, 55), font=FONT_LEGEND)
-        draw_line(draw, [(legend_x, style_y + 16), (legend_x + legend_line, style_y + 16)], (40, 40, 40), 2, dashed=True)
-        draw.text((legend_x + 28, style_y + 9), "forecast", fill=(55, 55, 55), font=FONT_LEGEND)
-    else:
+    if not has_forecast:
         style_y = 230 if ratio_axis else 184
         draw_markers(draw, [(legend_x + 11, style_y)], (40, 40, 40), 3)
         draw.text((legend_x + 28, style_y - 7), "history point", fill=(55, 55, 55), font=FONT_LEGEND)
