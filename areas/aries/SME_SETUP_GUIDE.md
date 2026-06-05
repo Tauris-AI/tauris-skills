@@ -1,6 +1,6 @@
 # ARIES Area - SME Setup Guide
 
-Helps Claude Cowork, Codex, or another agent review ARIES concepts, `AC_ECONOMIC` line behavior, and Access-export assumptions using the area-local skills.
+Helps Claude Cowork, Codex, or another agent review ARIES concepts, draft new `AC_ECONOMIC` lines from documentation, and review Access-export assumptions using the area-local skills.
 
 ## Prerequisites
 
@@ -19,9 +19,25 @@ dir C:\Dev\tauris-skills\areas\aries
 - `skills/aries-core`
 - `skills/aries-ac-economic`
 
+## Default Use: Documentation First
+
+For AC_ECONOMIC line work, start with:
+
+- `skills/aries-core/SKILL.md`
+- `skills/aries-ac-economic/SKILL.md`
+- `skills/aries-ac-economic/references/aries-ac-economic-best-practices.md`
+- `skills/aries-ac-economic/references/ac-economic-line-grammar.md`
+- `skills/aries-ac-economic/references/ac-economic-calculations.md`
+- `skills/aries-ac-economic/references/ac-economic-keyword-catalog.md`
+- `skills/aries-ac-economic/references/line-format.md`
+- `skills/aries-ac-economic/references/validation-rules.md`
+- `skills/aries-ac-economic/references/phdwin-ac-economic-resolver.md` when the task involves the Python MCP exporter or PHDWin source-table parsing
+
+This path does not require an ARIES database. Use it for creating proposed new lines, reviewing assumptions, and preparing dry-run edits.
+
 ## Optional Cowork MCP Server
 
-For local ARIES Access database inspection, configure:
+Configure this only for local ARIES Access database inspection:
 
 - `mcp-servers/aries-mcp`
 
@@ -31,7 +47,7 @@ The server name is `aries-mcp`, and the Python entrypoint is:
 areas/aries/mcp-servers/aries-mcp/aries_mcp.py
 ```
 
-It supports both `.accdb` and `.mdb` paths through the Microsoft ACE Access ODBC driver.
+It supports both `.accdb` and `.mdb` paths through the Microsoft ACE Access ODBC driver. It is not required for documentation review or drafting new lines.
 
 Use the example config:
 
@@ -42,7 +58,7 @@ areas/aries/mcp-servers/aries-mcp/cowork_config.example.json
 ## Recommended Prompt
 
 ```text
-Use the ARIES area in this repo. Start with areas/aries/skills/aries-core/SKILL.md and areas/aries/skills/aries-ac-economic/SKILL.md. Review the provided ARIES economic data or assumptions. Keep the work read-only unless I explicitly approve a dry-run mutation plan.
+Use the ARIES area in this repo. Start with areas/aries/skills/aries-core/SKILL.md and areas/aries/skills/aries-ac-economic/SKILL.md. For AC_ECONOMIC line work, read references/aries-ac-economic-best-practices.md, references/ac-economic-line-grammar.md, references/ac-economic-calculations.md, references/ac-economic-keyword-catalog.md, references/line-format.md, and references/validation-rules.md first. For PHDWin-to-ARIES Python exporter behavior, also read references/phdwin-ac-economic-resolver.md. Draft proposed new lines as a dry-run artifact. Do not ask for a database unless I specifically request inspection of a supplied `.accdb`, `.mdb`, or SQLite export.
 ```
 
 ## Usage
@@ -50,6 +66,7 @@ Use the ARIES area in this repo. Start with areas/aries/skills/aries-core/SKILL.
 Use this area for:
 
 - ARIES table concepts
+- drafting proposed `AC_ECONOMIC` lines from documented assumptions
 - ARIES `.accdb` / `.mdb` inspection through the optional MCP server
 - `AC_ECONOMIC` review
 - economic-line validation rules

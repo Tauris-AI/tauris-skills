@@ -1,6 +1,6 @@
 # ARIES Claude Cowork Plugin
 
-Installs the ARIES skills and MCP server from the `tauris-skills` Cowork marketplace.
+Installs the ARIES documentation-first skills from the `tauris-skills` Cowork marketplace. The optional MCP server is only for inspecting local ARIES `.accdb` / `.mdb` files when the user supplies one.
 
 ## Install
 
@@ -37,7 +37,9 @@ Then reinstall the affected plugins.
 
 ## Python
 
-`aries` uses Python 3.12:
+Python is only needed when using the optional `aries-mcp` Access database inspection server. AC_ECONOMIC documentation review and drafting new lines do not require a database or Python.
+
+`aries-mcp` uses Python 3.12:
 
 ```cmd
 py --list
@@ -55,5 +57,5 @@ Cowork launches the server with `py -3.12` from `areas/aries/.mcp.json`.
 ## First Prompt
 
 ```text
-Use the ARIES area in this repo. Load the ARIES skills, then inspect the supplied ARIES Access database through aries-mcp without writing changes.
+Use the ARIES area in this repo. Load areas/aries/skills/aries-core/SKILL.md and areas/aries/skills/aries-ac-economic/SKILL.md. For AC_ECONOMIC work, read references/aries-ac-economic-best-practices.md, references/ac-economic-line-grammar.md, references/ac-economic-calculations.md, references/ac-economic-keyword-catalog.md, references/line-format.md, and references/validation-rules.md first. For PHDWin-to-ARIES Python exporter behavior, also read references/phdwin-ac-economic-resolver.md. Draft or review proposed new lines as a dry-run artifact. Do not ask for an ARIES database unless I specifically request database inspection or validation against supplied rows.
 ```

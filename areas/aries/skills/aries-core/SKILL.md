@@ -27,7 +27,7 @@ Use this skill when an agent must understand or review how PHDWin v2 data become
 Load these only when the task requires the detail:
 
 - `references/module-map.md`: ARIES area/module routing.
-- `../aries-ac-economic/SKILL.md`: detailed `AC_ECONOMIC` parsing, validation, and line editing.
+- `../aries-ac-economic/SKILL.md`: detailed `AC_ECONOMIC` parsing, validation, taxonomy, Tauris conversion best practices, and line editing.
 - `../../../phdwin-v2/mcp-servers/PHDWinv2_MCP/PHDWIN_TO_ARIES_TABLE_MAP.md`: PHDWin source table map.
 - `../../../phdwin-v2/mcp-servers/PHDWinv2_MCP/PHDWIN_TO_ARIES_PLAYBOOK.md`: Cowork workflow for PHDWin-to-Aries review.
 - `../../../phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/aries-conv-docs/ARIES_ACCESS_TABLE_CONTRACTS.md`: fixed ARIES Access table contracts.
@@ -217,18 +217,20 @@ Use the template as schema guidance, but Tauris export rules override loose dyna
 
 ## AC_ECONOMIC Rules
 
-Use the narrower `aries-ac-economic` skill for detailed line parsing and validation.
+Use the narrower `aries-ac-economic` skill for detailed line parsing, validation, taxonomy, and Tauris conversion best practices.
 
 At this level, remember:
 
 - `AC_ECONOMIC` is lease-scoped.
 - key shape is `PROPNUM`, `SECTION`, `SEQUENCE`.
+- final row shape preserves `PROPNUM`, `SECTION`, `SEQUENCE`, `QUALIFIER`, `KEYWORD`, and `EXPRESSION`.
+- Tauris conversion methods are the preferred best-practice source for line generation and resolution until the Python MCP exporter reaches parity.
 - forecast rows come primarily from `PHD_FORCAST`.
 - production/economic detail may also require `PHD_LSESEGMENT`, `PHD_LSEPRODVAL`, `PHD_ECON`, `PHD_INVEST`, `PHD_INVESTDESCR`, `MOD_SCEN`, and `MOD_TEMPLATE`.
 - sidefile expansion, lookup expansion, setup common/default lines, scenario selection, and macro substitution are fidelity risks.
 - unsupported economic rows should be preserved unless a human explicitly approves dropping or rewriting them.
 
-If asked to generate or edit actual economic lines, load `aries-ac-economic` and its references before drafting output.
+If asked to generate or edit actual economic lines, load `aries-ac-economic` plus its best-practices, grammar, calculation, keyword-catalog, line-format, and validation references before drafting output.
 
 ## Actuals: AC_PRODUCT, AC_DAILY, AC_TEST
 

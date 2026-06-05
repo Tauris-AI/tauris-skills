@@ -1,6 +1,6 @@
 {
   "name": "aries",
-  "description": "ARIES table-contract review, AC_ECONOMIC validation, and Access/SQLite template inspection.",
+  "description": "ARIES table-contract review, AC_ECONOMIC taxonomy/validation, Tauris conversion best practices, and optional Access/SQLite inspection.",
   "version": "0.1.0",
   "author": {
     "name": "Tauris AI"

@@ -1,12 +1,12 @@
 # Aries
 
-ARIES-specific review and table contract material.
+ARIES-specific documentation, review, and table contract material.
 
 ## Included Assets
 
 - Skill: `skills/aries-core`
 - Skill: `skills/aries-ac-economic`
-- MCP server: `mcp-servers/aries-mcp`
+- Optional MCP server: `mcp-servers/aries-mcp`
 - Setup guide: `SME_SETUP_GUIDE.md`
 - Copilot prompt: `../../.github/prompts/aries-ac-economic-review.prompt.md`
 - Conversion reference docs: `../phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/aries-conv-docs`
@@ -16,8 +16,10 @@ ARIES-specific review and table contract material.
 
 ## Scope
 
-This area explains ARIES table expectations and review rules. It also includes a Python `aries-mcp` server for local Cowork inspection and maintenance of ARIES `.accdb` and `.mdb` files.
+This area is documentation-first. Use it to understand ARIES table expectations, draft or review new `AC_ECONOMIC` lines, and reason about conversion behavior before touching any database.
 
-Production PHDWin-to-Aries export remains in the PHDWin v2 workflow; this area provides agent-facing ARIES guidance, review assets, and Access database tools.
+The Python `aries-mcp` server is optional and only applies when a user supplies a local ARIES `.accdb` or `.mdb` for inspection or maintenance.
 
-The local SQLite Access-template copy is included so Claude Code, Cowork, and other local agents can inspect the ARIES table/view surface without requiring Access ODBC. It includes SQLite views corresponding to Access query/view objects.
+Production PHDWin-to-Aries export remains in the PHDWin v2 workflow; this area provides agent-facing ARIES guidance, review assets, and optional Access database tools.
+
+The local SQLite Access-template copy is included only as schema/reference support. It is not required for drafting new documented economic lines.
