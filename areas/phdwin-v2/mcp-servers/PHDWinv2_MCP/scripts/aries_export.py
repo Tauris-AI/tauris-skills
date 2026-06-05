@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import shutil
 import sqlite3
 from dataclasses import dataclass
@@ -742,6 +743,20 @@ def q(identifier: str) -> str:
     return "[" + identifier.replace("]", "]]") + "]"
 
 
+def resolve_access_template_path(template_path: Path | None = None) -> Path:
+    if template_path is not None:
+        return template_path
+    env_path = os.environ.get("ARIES_TEMPLATE_ACCDB_PATH")
+    if env_path:
+        return Path(env_path)
+    raise FileNotFoundError(
+        "Aries Access export requires an external template .accdb. "
+        "Pass --template, pass template_accdb_path to the MCP tool, or set ARIES_TEMPLATE_ACCDB_PATH. "
+        "The Cowork plugin does not bundle Aries_Template.accdb because raw database templates can trip "
+        "Cowork's compression-ratio guard."
+    )
+
+
 def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path: Path, output_path: Path) -> list[str]:
     warnings: list[str] = []
     try:
@@ -809,8 +824,7 @@ def export_aries(
 
     final_accdb_path: Path | None = None
     if accdb_path is not None:
-        if template_path is None:
-            template_path = Path(__file__).resolve().parents[1] / "reference" / "templates" / "Aries_Template.accdb"
+        template_path = resolve_access_template_path(template_path)
         final_accdb_path = accdb_path.resolve()
         warnings.extend(write_access_database(tables, template_path.resolve(), final_accdb_path))
 
@@ -835,7 +849,10 @@ def main() -> int:
     parser.add_argument("output", help="Output directory, Aries SQLite path, or Aries ACCDB path depending on flags")
     parser.add_argument("--output-sqlite", action="store_true", help="Write batched Aries tables to a SQLite database.")
     parser.add_argument("--batch-size", type=int, default=50, help="Lease batch size for --output-sqlite.")
-    parser.add_argument("--template", help="Aries_Template.accdb path. Defaults to packaged template.")
+    parser.add_argument(
+        "--template",
+        help="External Aries_Template.accdb path. If omitted, ARIES_TEMPLATE_ACCDB_PATH is used.",
+    )
     parser.add_argument(
         "--accdb",
         nargs="?",

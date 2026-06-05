@@ -105,7 +105,7 @@ Output artifacts:
 
 - one CSV per Aries target table under `<output-dir>/csv`
 - `aries-export-summary.json`
-- optional `.accdb` copied from `reference/templates/Aries_Template.accdb` and populated through Access ODBC
+- optional `.accdb` copied from an external cleared `Aries_Template.accdb` and populated through Access ODBC
 
 ## Core Source Tables
 

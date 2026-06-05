@@ -25,6 +25,7 @@ from common import (
 from export_sqlite import sqlite_table_name
 from aries_export import (
     read_aries_sqlite_tables,
+    resolve_access_template_path,
     write_access_database,
     write_csv_tables,
 )
@@ -109,6 +110,135 @@ def _json_value(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     return str(value)
+
+
+def _quote_sqlite_identifier(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _create_text_table(conn: sqlite3.Connection, table_name: str, columns: list[str]) -> None:
+    column_sql = ", ".join(f"{_quote_sqlite_identifier(column)} TEXT" for column in columns)
+    conn.execute(f"CREATE TABLE {_quote_sqlite_identifier(table_name)} ({column_sql})")
+
+
+def _insert_dict_rows(
+    conn: sqlite3.Connection,
+    table_name: str,
+    columns: list[str],
+    rows: list[dict[str, Any]],
+) -> None:
+    if not rows:
+        return
+    placeholders = ", ".join("?" for _ in columns)
+    conn.executemany(
+        f"INSERT INTO {_quote_sqlite_identifier(table_name)} VALUES ({placeholders})",
+        [[row.get(column) for column in columns] for row in rows],
+    )
+
+
+def create_phdwin_review_template_sqlite(sqlite_path: Path, overwrite: bool = False) -> dict[str, Any]:
+    """Create a synthetic PHDWin review fixture without shipping a binary SQLite file."""
+    if sqlite_path.exists():
+        if not overwrite:
+            raise FileExistsError(f"SQLite template already exists: {sqlite_path}")
+        sqlite_path.unlink()
+    sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tables: dict[str, tuple[list[str], list[dict[str, Any]]]] = {
+        "TEMPLATE_METADATA": (
+            ["key", "value"],
+            [
+                {"key": "template_type", "value": "phdwin_review_sqlite"},
+                {"key": "generated_by", "value": "phdwin_mcp_server.py"},
+                {"key": "scope", "value": "Synthetic one-lease PHDWin review fixture with no client data"},
+                {"key": "source_table_count", "value": str(len(DEFAULT_TABLES))},
+            ],
+        ),
+        "PHD_TITLES": (
+            ["PROJECT_ID", "PROJECT_NAME", "CASE_SET", "EFFECTIVE_DATE", "NOTES"],
+            [{"PROJECT_ID": "TPL_PROJECT", "PROJECT_NAME": "SANITIZED TEMPLATE PROJECT", "CASE_SET": "BASE", "EFFECTIVE_DATE": "2026-01-01", "NOTES": "Synthetic template row for agent testing only"}],
+        ),
+        "PHD_MAINLSE": (
+            ["LSE_ID", "LSE_NAME", "API", "OPERATOR", "FIELD", "COUNTY", "STATE", "RESERVE_CLASS", "RESERVE_CATEGORY", "GRP_ID", "FIRST_PROD_DATE"],
+            [{"LSE_ID": "TPL_LSE_0001", "LSE_NAME": "SANITIZED LEASE 0001", "API": "00-000-00000", "OPERATOR": "REDACTED OPERATOR", "FIELD": "REDACTED FIELD", "COUNTY": "REDACTED COUNTY", "STATE": "XX", "RESERVE_CLASS": "PDP", "RESERVE_CATEGORY": "PROVED", "GRP_ID": "TPL_GRP_01", "FIRST_PROD_DATE": "2025-01-01"}],
+        ),
+        "PHD_PRODUCTNAMES": (
+            ["PRODUCTCODE", "PRODUCT_NAME", "UNIT"],
+            [
+                {"PRODUCTCODE": "OIL", "PRODUCT_NAME": "Oil", "UNIT": "BBL"},
+                {"PRODUCTCODE": "GAS", "PRODUCT_NAME": "Gas", "UNIT": "MCF"},
+                {"PRODUCTCODE": "NGL", "PRODUCT_NAME": "NGL", "UNIT": "BBL"},
+            ],
+        ),
+        "PHD_OWNER": (
+            ["LSE_ID", "GRP_ID", "SEQ", "OWNER_NAME", "WORKING_INTEREST", "NET_REVENUE_INTEREST", "BURDEN"],
+            [{"LSE_ID": "TPL_LSE_0001", "GRP_ID": "TPL_GRP_01", "SEQ": "1", "OWNER_NAME": "REDACTED OWNER", "WORKING_INTEREST": "1.000000", "NET_REVENUE_INTEREST": "0.800000", "BURDEN": "0.200000"}],
+        ),
+        "PHD_GROUPS": (
+            ["GRP_ID", "GROUP_NAME", "DESCRIPTION"],
+            [{"GRP_ID": "TPL_GRP_01", "GROUP_NAME": "SANITIZED GROUP", "DESCRIPTION": "Synthetic ownership/project group"}],
+        ),
+        "PHD_FORCAST": (
+            ["LSE_ID", "ARCSEQ", "PRODUCTCODE", "START_DATE", "QI", "DI", "B_FACTOR", "MIN_DECLINE", "ECON_LIMIT"],
+            [
+                {"LSE_ID": "TPL_LSE_0001", "ARCSEQ": "1", "PRODUCTCODE": "OIL", "START_DATE": "2026-01-01", "QI": "100.0", "DI": "0.6500", "B_FACTOR": "0.9000", "MIN_DECLINE": "0.0600", "ECON_LIMIT": "1.0"},
+                {"LSE_ID": "TPL_LSE_0001", "ARCSEQ": "1", "PRODUCTCODE": "GAS", "START_DATE": "2026-01-01", "QI": "600.0", "DI": "0.6200", "B_FACTOR": "0.8500", "MIN_DECLINE": "0.0600", "ECON_LIMIT": "10.0"},
+            ],
+        ),
+        "PHD_MONHIST": (
+            ["LSE_ID", "TYPE", "YEAR", "MONTH", "PRODUCTCODE", "VOLUME", "DAYS_ON"],
+            [
+                {"LSE_ID": "TPL_LSE_0001", "TYPE": "M", "YEAR": "2025", "MONTH": "1", "PRODUCTCODE": "OIL", "VOLUME": "3000.0", "DAYS_ON": "31"},
+                {"LSE_ID": "TPL_LSE_0001", "TYPE": "M", "YEAR": "2025", "MONTH": "1", "PRODUCTCODE": "GAS", "VOLUME": "18000.0", "DAYS_ON": "31"},
+            ],
+        ),
+        "PHD_CUMVOL": (
+            ["LSE_ID", "PRODUCTCODE", "CUM_VOLUME", "AS_OF_DATE"],
+            [
+                {"LSE_ID": "TPL_LSE_0001", "PRODUCTCODE": "OIL", "CUM_VOLUME": "3000.0", "AS_OF_DATE": "2025-01-31"},
+                {"LSE_ID": "TPL_LSE_0001", "PRODUCTCODE": "GAS", "CUM_VOLUME": "18000.0", "AS_OF_DATE": "2025-01-31"},
+            ],
+        ),
+        "PHD_ECON": (
+            ["LSE_ID", "EFFECTIVE_DATE", "LOE_FIXED", "LOE_VARIABLE", "SEV_TAX_RATE", "AD_VAL_TAX_RATE"],
+            [{"LSE_ID": "TPL_LSE_0001", "EFFECTIVE_DATE": "2026-01-01", "LOE_FIXED": "2500.00", "LOE_VARIABLE": "1.25", "SEV_TAX_RATE": "0.0460", "AD_VAL_TAX_RATE": "0.0150"}],
+        ),
+        "PHD_INVEST": (
+            ["LSE_ID", "INVEST_ID", "INVEST_DATE", "AMOUNT", "CATEGORY"],
+            [{"LSE_ID": "TPL_LSE_0001", "INVEST_ID": "TPL_CAPEX_01", "INVEST_DATE": "2026-01-01", "AMOUNT": "100000.00", "CATEGORY": "FUTURE_CAPITAL"}],
+        ),
+        "PHD_INVESTDESCR": (
+            ["INVEST_ID", "DESCRIPTION"],
+            [{"INVEST_ID": "TPL_CAPEX_01", "DESCRIPTION": "Synthetic future capital"}],
+        ),
+        "MOD_SCEN": (
+            ["SCEN_ID", "SCENARIO_NAME", "PRICE_SET", "COST_SET"],
+            [{"SCEN_ID": "TPL_SCEN_01", "SCENARIO_NAME": "SANITIZED BASE CASE", "PRICE_SET": "TPL_PRICE", "COST_SET": "TPL_COST"}],
+        ),
+        "MOD_TEMPLATE": (
+            ["TEMPLATE_ID", "TEMPLATE_NAME", "DESCRIPTION"],
+            [{"TEMPLATE_ID": "TPL_MODEL_01", "TEMPLATE_NAME": "SANITIZED MODEL TEMPLATE", "DESCRIPTION": "Synthetic model assumptions"}],
+        ),
+    }
+    placeholder_columns = ["LSE_ID", "GRP_ID", "SEQ", "SOURCE_ROLE", "SANITIZED_VALUE", "NOTES"]
+    for table_name in DEFAULT_TABLES:
+        tables.setdefault(
+            table_name,
+            (
+                placeholder_columns,
+                [{"LSE_ID": "TPL_LSE_0001", "GRP_ID": "TPL_GRP_01", "SEQ": "1", "SOURCE_ROLE": "placeholder_schema", "SANITIZED_VALUE": "SYNTHETIC", "NOTES": "Replace with real exported columns when a native PHDWin dataset is available"}],
+            ),
+        )
+
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        for table_name, (columns, rows) in tables.items():
+            _create_text_table(conn, table_name, columns)
+            _insert_dict_rows(conn, table_name, columns, rows)
+        conn.commit()
+    finally:
+        conn.close()
+    return {"sqlitePath": str(sqlite_path), "tableCount": len(tables), "sourceTableCount": len(DEFAULT_TABLES)}
 
 
 def _cursor_table_names(cursor: Any) -> list[str]:
@@ -791,6 +921,20 @@ def export_table_csvs(
 
 
 @mcp.tool
+def create_phdwin_review_template(
+    output_sqlite_path: str,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Create a local synthetic PHDWin review SQLite fixture from code.
+
+    The Cowork plugin intentionally does not bundle the old binary
+    phdwin_review_template.sqlite because highly compressible database files
+    can trip Cowork's plugin compression-ratio guard.
+    """
+    return create_phdwin_review_template_sqlite(_path(output_sqlite_path), overwrite=overwrite)
+
+
+@mcp.tool
 def export_aries_to_accdb(
     aries_sqlite_path: str,
     output_accdb_path: str,
@@ -798,11 +942,7 @@ def export_aries_to_accdb(
 ) -> dict[str, Any]:
     """Read Aries SQLite and write an Aries .accdb. Requires Access ODBC."""
     accdb = _path(output_accdb_path)
-    template = (
-        _path(template_accdb_path)
-        if template_accdb_path
-        else Path(__file__).resolve().parents[1] / "reference" / "templates" / "Aries_Template.accdb"
-    )
+    template = resolve_access_template_path(_path(template_accdb_path) if template_accdb_path else None)
     tables = read_aries_sqlite_tables(_path(aries_sqlite_path))
     warnings = write_access_database(tables, template, accdb)
     return {

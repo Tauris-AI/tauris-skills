@@ -8,12 +8,12 @@ The Clarion / TopSpeed ODBC driver is only required for the one-time native PHDW
 
 Use `PHDWIN_TO_ARIES_TABLE_MAP.md` as the source table semantics guide when reviewing SQLite exports.
 
-Use `reference/` for the deeper Tauris.PhdWin conversion context and bundled Aries Access template. In particular:
+Use `reference/` for the deeper Tauris.PhdWin conversion context. Keep the Aries Access template as an external local file, not as a bundled plugin asset. In particular:
 
 - `reference/aries-conv-docs/PHDWIN_DATA_MAP.md`
 - `reference/aries-conv-docs/ARIES_ACCESS_TABLE_CONTRACTS.md`
 - `reference/aries-conv-docs/ARIES_SCHEMA_MAPPING.md`
-- `reference/templates/Aries_Template.accdb`
+- external `Aries_Template.accdb` supplied with `template_accdb_path` or `ARIES_TEMPLATE_ACCDB_PATH`
 - `reference/phdwin-v2/Phdwinout definitions_complete.xls`
 
 This MCP package is Python-only at runtime. Do not bundle Tauris C# source code into this repo.

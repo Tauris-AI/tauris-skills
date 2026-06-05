@@ -20,9 +20,9 @@ This folder contains conversion reference material copied from `Tauris.PhdWin` s
 
 ### Templates
 
-- `templates/Aries_Template.accdb`
+Raw database templates are intentionally not committed under this plugin area. Cowork rejects plugin archives that contain highly-compressible database blobs over its compression-ratio guard.
 
-The template is intentionally committed as reference material. Do not replace it with a client database.
+Keep cleared Aries `.accdb` templates outside the plugin checkout and point the runtime at them with `ARIES_TEMPLATE_ACCDB_PATH` or the `template_accdb_path` argument. Generate synthetic SQLite fixtures locally after install.
 
 ### Cleared PHDWin v2 Reference Documents
 
@@ -32,6 +32,6 @@ Use the PHDWin output definitions spreadsheet as checked-in reference material f
 
 ## Excluded
 
-The package intentionally excludes raw/sample databases, vendor help files, vendor manuals, and third-party reference documents unless they are explicitly cleared for redistribution. The included Access template and PHDWin output definitions spreadsheet are the only bundled binary reference artifacts intended for this public workflow.
+The package intentionally excludes raw/sample databases, generated SQLite templates, Access templates, vendor help files, vendor manuals, and third-party reference documents unless they are explicitly cleared for redistribution and safe for Cowork plugin packaging. The PHDWin output definitions spreadsheet is the only bundled binary reference artifact intended for this public workflow.
 
 Do not commit client PHDWin files, generated SQLite exports, extracted source folders, generated reports, or C# implementation snapshots. The Cowork MCP package runtime is Python.

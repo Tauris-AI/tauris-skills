@@ -15,7 +15,7 @@ What does **not** exist yet is the actual `.accdb` population path for the Aries
 
 ### Template
 
-- Aries_Template.accdb
+- External cleared Aries_Template.accdb, supplied outside the Cowork plugin package
 
 ### Current Repo Aries Export Surface
 

@@ -41,11 +41,15 @@ areas/*/mcp-servers/*/data/review/**
 !areas/*/mcp-servers/*/data/original/.gitkeep
 !areas/*/mcp-servers/*/data/extracted/.gitkeep
 !areas/*/mcp-servers/*/data/review/.gitkeep
-!areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/Aries_Template.accdb
 !areas/*/mcp-servers/*/reference/templates/*.sqlite
 !areas/*/mcp-servers/*/reference/templates/*.sqlite3
 !areas/*/reference/templates/*.sqlite
 !areas/*/reference/templates/*.sqlite3
+areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/*.accdb
+areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/*.mdb
+areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/*.sqlite
+areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/*.sqlite3
+areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/*.db
 areas/forecasting/mcp-servers/forecasting-mcp/data/input/**
 areas/forecasting/mcp-servers/forecasting-mcp/data/output/**
 !areas/forecasting/mcp-servers/forecasting-mcp/data/input/.gitkeep

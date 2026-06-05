@@ -6,7 +6,7 @@ This document is the working schema and relationship map for Aries Access refere
 
 Current primary reference database:
 
-- the sanitized Aries Access template included in `../templates/Aries_Template.accdb`
+- an external sanitized Aries Access template supplied outside the Cowork plugin package
 
 Secondary reference material:
 

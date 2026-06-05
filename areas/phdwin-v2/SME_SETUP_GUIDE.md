@@ -91,11 +91,23 @@ Use the PHDWin v2 area. Run the PHDWin-to-Aries workflow against this source, ex
 - run read-only SQL
 - export SQLite or CSV review artifacts
 - export PHDWin-to-Aries mapped CSV tables
-- optionally create an Aries Access export from the bundled template when Windows Access ODBC is available
+- optionally create an Aries Access export from an external cleared Aries template when Windows Access ODBC is available
+- create a local synthetic PHDWin review SQLite fixture with `create_phdwin_review_template`
+
+## External Aries Access Template
+
+The Cowork plugin does not bundle `Aries_Template.accdb` or generated SQLite template databases. Raw database templates compress too efficiently and can trip Cowork's plugin compression-ratio guard during install.
+
+For Access export, keep the cleared Aries template outside the plugin checkout and either pass `template_accdb_path` to `export_aries_to_accdb` or set:
+
+```cmd
+set ARIES_TEMPLATE_ACCDB_PATH=C:\Path\To\Aries_Template.accdb
+```
 
 ## Troubleshooting
 
 - Driver missing: install the 32-bit SoftVelocity Clarion / TopSpeed ODBC driver for native extraction, then run Cowork with `py -3.12-32`.
 - SQLite already exists: skip the driver and use SQLite review tools.
+- Access template missing: pass `template_accdb_path` or set `ARIES_TEMPLATE_ACCDB_PATH`; the template is intentionally external to the plugin.
 - Cowork server not visible: restart Cowork fully after editing config.
 - Locked files: close active Cowork sessions or use the included restart script.
