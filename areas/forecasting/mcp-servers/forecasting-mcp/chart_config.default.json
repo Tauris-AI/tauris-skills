@@ -8,6 +8,7 @@
     "plot": {
         "width": 1120,
         "height": 700,
+        "printMarginPx": 30,
         "left": 72,
         "top": 116,
         "right": 920,
@@ -21,7 +22,10 @@
         "years": 30,
         "stepYears": 0.08333333333333333,
         "terminalNominalDeclineAnnual": 0.06,
-        "yellowTailWapeThreshold": 0.5
+        "yellowTailWapeThreshold": 0.3,
+        "redTailWapeThreshold": 0.6,
+        "yellowIfTailR2Below": 0,
+        "recentOutlierLowRatio": 0.2
     },
     "lifecycle": {
         "earlyStagePositivePrimaryMonths": 6

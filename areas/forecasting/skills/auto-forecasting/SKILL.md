@@ -111,6 +111,18 @@ profile_and_recommend(csv_path)
 
 Use `pressureProjectionDiagnostics` and `fitOriginCandidates` from its output to decide which ArpsForecasting methods and fit windows should be applied later.
 
+For monthly production uploads with one production CSV zip and one well metadata CSV zip, use this as the default packaged workflow:
+
+```text
+run_monthly_production_dca_batch(production_zip, wells_zip, output_dir?, chart_config?)
+```
+
+This produces Green/Yellow/Red chart folders, one primary-product PNG per well, a well summary CSV/JSON, method candidate CSV, and analog type-curve screen. The chart object/design contract is archived at:
+
+```text
+areas/forecasting/mcp-servers/forecasting-mcp/chart_object_designer.archive.md
+```
+
 Alignment tool:
 
 ```text

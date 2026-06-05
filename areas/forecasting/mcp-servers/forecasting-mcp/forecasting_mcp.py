@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
+import subprocess
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -28,6 +31,7 @@ except ImportError:  # pragma: no cover - depends on client machine setup
 
 
 mcp = FastMCP("forecasting-mcp")
+SERVER_DIR = Path(__file__).resolve().parent
 
 WELL_ALIASES = ("well", "wellname", "well_name", "wellid", "well_id", "entityname", "entity_name", "api", "api10", "api14")
 DATE_ALIASES = ("date", "prod_date", "production_date", "month", "period")
@@ -857,6 +861,66 @@ def profile_and_recommend(csv_path: str, limit_wells: int | None = None) -> dict
         "recommendations": recommendations,
         "industryAlignments": alignments,
         "qcCounts": dict(sorted(qc_counts.items())),
+    }
+
+
+@mcp.tool()
+def run_monthly_production_dca_batch(
+    production_zip: str,
+    wells_zip: str,
+    output_dir: str | None = None,
+    chart_config: str | None = None,
+) -> dict[str, Any]:
+    """Default monthly production workflow: profile, fit local DCA candidates, create QC charts, and write CSV summaries.
+
+    Use this for monthly production uploads where Cowork receives one production CSV zip and one well metadata CSV zip.
+    The batch normalizes monthly volumes by ProducingDays, routes short histories to Still early stage, writes one PNG
+    per well under Green/Yellow/Red folders, and exports summary CSV/JSON files.
+    """
+    script = SERVER_DIR / "monthly_production_dca_batch.py"
+    if not script.exists():
+        raise FileNotFoundError(script)
+
+    output_path = Path(output_dir).expanduser().resolve() if output_dir else SERVER_DIR / "data" / "output" / "monthly_production_dca_batch"
+    chart_config_path = Path(chart_config).expanduser().resolve() if chart_config else SERVER_DIR / "chart_config.default.json"
+    cmd = [
+        sys.executable,
+        str(script),
+        "--production-zip",
+        str(Path(production_zip).expanduser().resolve()),
+        "--wells-zip",
+        str(Path(wells_zip).expanduser().resolve()),
+        "--output-dir",
+        str(output_path),
+        "--chart-config",
+        str(chart_config_path),
+    ]
+    completed = subprocess.run(cmd, text=True, capture_output=True, check=False)
+    if completed.returncode != 0:
+        return {
+            "ok": False,
+            "returnCode": completed.returncode,
+            "command": cmd,
+            "stdout": completed.stdout[-4000:],
+            "stderr": completed.stderr[-4000:],
+        }
+
+    summary_path = output_path / "forecast_batch_run_summary.json"
+    summary: dict[str, Any] = {}
+    if summary_path.exists():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    return {
+        "ok": True,
+        "outputDir": str(output_path),
+        "chartConfig": str(chart_config_path),
+        "runSummary": summary,
+        "outputs": {
+            "chartsDir": str(output_path / "primary_product_charts"),
+            "summaryCsv": str(output_path / "well_forecast_summary_green_yellow_red.csv"),
+            "methodCsv": str(output_path / "best_method_selection_summary.csv"),
+            "analogScreenCsv": str(output_path / "analog_type_curve_screen.csv"),
+            "manifest": str(output_path / "input_manifest.json"),
+        },
     }
 
 

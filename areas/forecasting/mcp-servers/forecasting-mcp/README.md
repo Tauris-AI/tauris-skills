@@ -11,6 +11,7 @@ This first version does not generate final forecasts. It helps decide which fore
 - `profile_csv`: infer well/date/production/pressure columns and profile each well.
 - `recommend_methods`: recommend forecast methods for one well profile.
 - `profile_and_recommend`: run profiling and method recommendation in one call.
+- `run_monthly_production_dca_batch`: default monthly production upload workflow. Runs profiling, local monthly DCA candidates, Green/Yellow/Red QC routing, one PNG per well, summary CSV/JSON outputs, and analog screening for early-stage wells.
 - `convert_decline_convention`: convert internal nominal decline values to commercial app entry values.
 - `validate_industry_alignment`: check whether a well profile/recommendation is directionally aligned with limited-data petroleum engineering DCA practice.
 
@@ -33,3 +34,21 @@ The conversion tool pins time to years, converts initial nominal Arps decline to
 ## Chart Reference
 
 Use `../../assets/engineering_log_decline_plot_reference.png` as the final plot reference. The SVG generator is only a local scaffold; it is not the target chart implementation.
+
+The maintained chart object/design contract is archived in:
+
+```text
+chart_object_designer.archive.md
+```
+
+Claude Code should read that archive before changing chart layout, axis behavior, QC folders, ratio display, pressure-context display, or bottom-panel content.
+
+## Default Monthly Upload Workflow
+
+When the user provides one monthly production CSV zip plus one well metadata CSV zip, Cowork should call:
+
+```text
+run_monthly_production_dca_batch(production_zip, wells_zip, output_dir?, chart_config?)
+```
+
+The default chart/batch configuration is `chart_config.default.json`. It controls chart layout, ratio colors and right-axis scaling, lifecycle thresholds, QC colors, forecast horizon, and future pressure-context styling.

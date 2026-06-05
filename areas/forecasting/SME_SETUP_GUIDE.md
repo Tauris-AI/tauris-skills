@@ -28,6 +28,12 @@ areas/forecasting/mcp-servers/forecasting-mcp/cowork_config.example.json
 Use the forecasting-mcp server. Profile this production CSV, summarize which wells have pressure data, recommend eligible forecast method families per well, and flag wells that need human forecast review before automated fitting.
 ```
 
+For monthly production uploads where the user provides a production CSV zip and well metadata CSV zip, use the default batch workflow:
+
+```text
+Use forecasting-mcp.run_monthly_production_dca_batch with the monthly production zip and well metadata zip. Generate Green/Yellow/Red chart folders, the well summary CSV, method candidate CSV, and analog type-curve screen.
+```
+
 ## Guardrails
 
 - Treat pressure as context and QC signal before using it as a model feature.

@@ -14,7 +14,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from forecasting_mcp import profile_and_recommend
 
@@ -37,6 +37,7 @@ DEFAULT_BATCH_CONFIG: dict[str, Any] = {
     "plot": {
         "width": 1120,
         "height": 700,
+        "printMarginPx": 30,
         "left": 72,
         "top": 116,
         "right": 920,
@@ -47,7 +48,10 @@ DEFAULT_BATCH_CONFIG: dict[str, Any] = {
         "years": 30.0,
         "stepYears": 1.0 / 12.0,
         "terminalNominalDeclineAnnual": 0.06,
-        "yellowTailWapeThreshold": 0.50,
+        "yellowTailWapeThreshold": 0.30,
+        "redTailWapeThreshold": 0.60,
+        "yellowIfTailR2Below": 0.0,
+        "recentOutlierLowRatio": 0.2,
     },
     "lifecycle": {
         "earlyStagePositivePrimaryMonths": 6,
@@ -354,6 +358,24 @@ def fmt_log_tick(value: float) -> str:
     return f"{value:.4f}".rstrip("0").rstrip(".")
 
 
+def compact_method(value: str) -> str:
+    text = str(value or "n/a")
+    text = text.replace("monthly DCA ", "")
+    text = text.replace("no DCA fit generated", "no DCA fit")
+    text = text.replace("2-stage trend-to-flat", "2-stage")
+    text = text.replace("1-stage flat", "flat")
+    return text
+
+
+def ratio_bounds(numerator_future: tuple[list[float], list[float]] | None, denominator_future: tuple[list[float], list[float]] | None) -> tuple[float | None, float | None]:
+    if not numerator_future or not denominator_future:
+        return None, None
+    values = [n / d for n, d in zip(numerator_future[1], denominator_future[1]) if n > 0 and d > 0]
+    if not values:
+        return None, None
+    return values[0], values[-1]
+
+
 def arps_rate(qi: float, di: float, b: float, t: float) -> float:
     if qi <= 0:
         return 0.0
@@ -575,6 +597,30 @@ def classify_lifecycle(primary_positive_months: int, best: dict[str, Any] | None
         "Enough positive primary-product months for a local monthly DCA fit.",
         "Not needed for current DCA run.",
     )
+
+
+def recent_fit_warning(best: dict[str, Any] | None, rates: list[float]) -> str:
+    if not best:
+        return ""
+    warnings: list[str] = []
+    tail_wape = best.get("tail_wape")
+    tail_r2 = best.get("tail_r2")
+    yellow_wape = float(CHART_CONFIG["forecast"].get("yellowTailWapeThreshold", 0.30))
+    yellow_r2 = float(CHART_CONFIG["forecast"].get("yellowIfTailR2Below", 0.0))
+    if tail_wape is not None and tail_wape > yellow_wape:
+        warnings.append(f"recent fit error > {yellow_wape * 100:.0f}%")
+    if tail_r2 is not None and tail_r2 < yellow_r2:
+        warnings.append(f"recent R2 < {yellow_r2:g}")
+    start = best.get("tail_start_index")
+    end = best.get("tail_end_index")
+    if start is not None and end is not None:
+        tail_rates = [rate for rate in rates[int(start) : int(end) + 1] if rate > 0]
+        if len(tail_rates) >= 3:
+            tail_median = median(tail_rates)
+            low_ratio = float(CHART_CONFIG["forecast"].get("recentOutlierLowRatio", 0.2))
+            if tail_median > 0 and min(tail_rates) < tail_median * low_ratio:
+                warnings.append("possible low-rate operational outlier in recent window")
+    return "; ".join(warnings)
 
 
 def text_key(value: Any) -> str:
@@ -906,16 +952,43 @@ def write_chart(
     draw.line([(50, panel_y - 18), (1070, panel_y - 18)], fill=(205, 205, 205), width=1)
     draw.text((58, panel_y), "Selected Methods", fill=(40, 40, 40), font=FONT_BOLD)
     method_lines = [
-        f"Primary: {summary['PrimaryMethodUsed']} | RMSE: {summary['PrimaryTailRMSE']} | R2: {summary['PrimaryTailR2']}",
-        f"Oil fit: {oil_fit['method'] if oil_fit else 'not fitted'} | RMSE: {fmt_metric(oil_fit.get('tail_rmse') if oil_fit else None)} | R2: {fmt_metric(oil_fit.get('tail_r2') if oil_fit else None, 3)}",
-        f"Gas fit: {gas_fit['method'] if gas_fit else 'not fitted'} | RMSE: {fmt_metric(gas_fit.get('tail_rmse') if gas_fit else None)} | R2: {fmt_metric(gas_fit.get('tail_r2') if gas_fit else None, 3)}",
-        f"Gas ratio: {summary['GasRatioMethod']} | RMSE: {summary['GasRatioTailRMSE']} | R2: {summary['GasRatioTailR2']}",
-        f"Water ratio: {summary['WaterRatioMethod']} | RMSE: {summary['WaterRatioTailRMSE']} | R2: {summary['WaterRatioTailR2']}",
+        f"Primary: {compact_method(summary['PrimaryMethodUsed'])} | RMSE {summary['PrimaryTailRMSE']}",
+        f"Oil: {compact_method(oil_fit['method'] if oil_fit else 'not fitted')} | RMSE {fmt_metric(oil_fit.get('tail_rmse') if oil_fit else None)}",
+        f"Gas: {compact_method(gas_fit['method'] if gas_fit else 'not fitted')} | RMSE {fmt_metric(gas_fit.get('tail_rmse') if gas_fit else None)}",
+        f"Gas ratio: {compact_method(summary['GasRatioMethod'])} | R2 {summary['GasRatioTailR2']}",
+        f"Water ratio: {compact_method(summary['WaterRatioMethod'])} | R2 {summary['WaterRatioTailR2']}",
     ]
     for i, text in enumerate(method_lines):
-        draw.text((58, panel_y + 32 + i * 21), text[:92], fill=(65, 65, 65), font=FONT_SMALL)
+        draw.text((58, panel_y + 32 + i * 21), text[:48], fill=(65, 65, 65), font=FONT_SMALL)
 
-    draw.text((610, panel_y), "EUR Summary", fill=(40, 40, 40), font=FONT_BOLD)
+    draw.text((420, panel_y), "Arps / Ratio Params", fill=(40, 40, 40), font=FONT_BOLD)
+    if summary["PrimaryMethodUsed"] == "no DCA fit generated":
+        param_lines = [
+            "Primary Arps: n/a",
+            "Insufficient data for DCA shape",
+            "Type curve / offset proxy needed",
+        ]
+    else:
+        primary_ratio_lines = []
+        if summary["PrimaryProduct"] == "Oil":
+            primary_ratio_lines = [
+                f"GOR: {summary['GasRatioStart']} -> {summary['GasRatioEnd']}",
+                f"WOR: {summary['WaterRatioStart']} -> {summary['WaterRatioEnd']}",
+            ]
+        else:
+            primary_ratio_lines = [
+                f"OGR: {summary['OilRatioStart']} -> {summary['OilRatioEnd']}",
+                f"WGR: {summary['WaterRatioStart']} -> {summary['WaterRatioEnd']}",
+            ]
+        param_lines = [
+            f"Qi: {summary['PrimaryProductQi']} | b: {summary['PrimaryBFactor']}",
+            f"Di eff: {summary['PrimaryEffectiveAnnualDiPercent']}% | Dmin: {float(CHART_CONFIG['forecast'].get('terminalNominalDeclineAnnual', TERMINAL_NOMINAL_D)) * 100:.1f}%",
+            f"Recent months: {summary['RecentFitStartMonthIndex']}-{summary['RecentFitEndMonthIndex']}",
+        ] + primary_ratio_lines
+    for i, text in enumerate(param_lines):
+        draw.text((420, panel_y + 32 + i * 21), text[:46], fill=(65, 65, 65), font=FONT_SMALL)
+
+    draw.text((745, panel_y), "EUR Summary", fill=(40, 40, 40), font=FONT_BOLD)
     eur_lines = [
         f"Hist + Fcast Oil: {summary['EUR_Oil_BBL']:,.0f} bbl",
         f"Hist + Fcast Gas: {summary['EUR_Gas_MCF']:,.0f} mcf",
@@ -924,12 +997,15 @@ def write_chart(
         "Basis: monthly DCA, no pressure diagnostics" if has_forecast else "Basis: history only; no DCA forecast generated",
     ]
     for i, text in enumerate(eur_lines):
-        draw.text((610, panel_y + 32 + i * 21), text, fill=(65, 65, 65), font=FONT_SMALL)
+        draw.text((745, panel_y + 32 + i * 21), text[:42], fill=(65, 65, 65), font=FONT_SMALL)
 
     qc_folder = summary.get("QC") if summary.get("QC") in {"Green", "Yellow", "Red"} else "Unclassified"
     chart_folder = CHART_DIR / qc_folder
     chart_folder.mkdir(parents=True, exist_ok=True)
     path = chart_folder / f"{clean_name(well)}_primary_product.png"
+    margin = int(CHART_CONFIG["plot"].get("printMarginPx", 0))
+    if margin > 0:
+        img = ImageOps.expand(img, border=margin, fill="white")
     img.save(path)
     return path
 
@@ -998,6 +1074,9 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
         gas_ratio_wape = water_ratio_wape = None
         gas_ratio_rmse = water_ratio_rmse = None
         gas_ratio_r2 = water_ratio_r2 = None
+        gas_ratio_start = gas_ratio_end = None
+        oil_ratio_start = oil_ratio_end = None
+        water_ratio_start = water_ratio_end = None
         forecast_oil = forecast_gas = 0.0
 
         if best:
@@ -1016,6 +1095,8 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
                 water_ratio_rmse = wor_model["tail_rmse"]
                 gas_ratio_r2 = gor_model["tail_r2"]
                 water_ratio_r2 = wor_model["tail_r2"]
+                gas_ratio_start, gas_ratio_end = ratio_bounds(gas_future, oil_future)
+                water_ratio_start, water_ratio_end = ratio_bounds(water_future, oil_future)
             else:
                 gas_future = (future_t, primary_future_rates)
                 ogr_model = smooth_ratio_model(times, oil_rates, gas_rates, "OGR")
@@ -1030,14 +1111,19 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
                 water_ratio_rmse = wgr_model["tail_rmse"]
                 gas_ratio_r2 = best["tail_r2"]
                 water_ratio_r2 = wgr_model["tail_r2"]
+                oil_ratio_start, oil_ratio_end = ratio_bounds(oil_future, gas_future)
+                water_ratio_start, water_ratio_end = ratio_bounds(water_future, gas_future)
             forecast_oil = remaining_volume(oil_future[1]) if oil_future else 0.0
             forecast_gas = remaining_volume(gas_future[1]) if gas_future else 0.0
 
         rec = recommendation_by_well.get(well, {})
         qc = (rec.get("qc") or "yellow").capitalize()
+        fit_warning = recent_fit_warning(best, primary_rates)
         if not best:
             qc = "Red"
-        elif best.get("tail_wape") is not None and best["tail_wape"] > float(CHART_CONFIG["forecast"].get("yellowTailWapeThreshold", 0.50)):
+        elif best.get("tail_wape") is not None and best["tail_wape"] > float(CHART_CONFIG["forecast"].get("redTailWapeThreshold", 0.60)):
+            qc = "Red"
+        elif fit_warning:
             qc = "Yellow" if qc == "Green" else qc
         lifecycle_stage, data_sufficiency, type_curve_status = classify_lifecycle(primary_positive_months, best)
 
@@ -1055,6 +1141,7 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
             "PrimaryPositiveMonths": primary_positive_months,
             "DcaDataSufficiency": data_sufficiency,
             "TypeCurveProxyStatus": type_curve_status,
+            "RecentFitWarning": fit_warning,
             "RecommendedMethodFamily": rec.get("recommendedMethod") or "",
             "PrimaryMethodUsed": best["method"] if best else "no DCA fit generated",
             "PressureDataAvailable": "No",
@@ -1074,10 +1161,16 @@ def run_batch(production_zip: Path, wells_zip: Path, output_dir: Path, chart_con
             "GasRatioTailWAPEPercent": round(gas_ratio_wape * 100.0, 2) if gas_ratio_wape is not None else "",
             "GasRatioTailRMSE": fmt_metric(gas_ratio_rmse),
             "GasRatioTailR2": fmt_metric(gas_ratio_r2, 3),
+            "GasRatioStart": fmt_metric(gas_ratio_start, 3),
+            "GasRatioEnd": fmt_metric(gas_ratio_end, 3),
+            "OilRatioStart": fmt_metric(oil_ratio_start, 4),
+            "OilRatioEnd": fmt_metric(oil_ratio_end, 4),
             "WaterRatioMethod": water_ratio_method,
             "WaterRatioTailWAPEPercent": round(water_ratio_wape * 100.0, 2) if water_ratio_wape is not None else "",
             "WaterRatioTailRMSE": fmt_metric(water_ratio_rmse),
             "WaterRatioTailR2": fmt_metric(water_ratio_r2, 3),
+            "WaterRatioStart": fmt_metric(water_ratio_start, 3),
+            "WaterRatioEnd": fmt_metric(water_ratio_end, 3),
             "HistOil_BBL": round(hist_oil, 2),
             "ForecastOil_BBL_30yr_DCA": round(forecast_oil, 2),
             "EUR_Oil_BBL": round(eur_oil, 2),
