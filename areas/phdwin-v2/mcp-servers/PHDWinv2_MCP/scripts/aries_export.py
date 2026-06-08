@@ -779,7 +779,7 @@ def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path
     with pyodbc.connect(conn_str, autocommit=False) as conn:
         conn.setdecoding(pyodbc.SQL_CHAR, encoding="latin-1")
         conn.setdecoding(pyodbc.SQL_WCHAR, encoding="latin-1")
-        conn.setdecoding(pyodbc.SQL_WMETADATA, encoding="latin-1")
+        conn.setdecoding(pyodbc.SQL_WMETADATA, encoding="utf-16-le")
         conn.setencoding(encoding="utf-8")
         cursor = conn.cursor()
         available_tables = access_table_names(cursor)
