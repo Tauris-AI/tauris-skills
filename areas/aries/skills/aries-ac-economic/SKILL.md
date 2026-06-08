@@ -12,15 +12,16 @@ Use this skill when a task involves ARIES `AC_ECONOMIC` table lines. A database 
 1. Determine whether the request is read-only, draft-only, or write-intended.
 2. Load `references/line-format.md` for the current documented line format.
 3. Load `references/validation-rules.md` before validating, generating, or modifying lines.
-4. For AC_ECONOMIC taxonomy, scenario/qualifier behavior, section ordering, sidefile/lookup expansion, forecast lines, ownership lines, or Tauris conversion best practice, load `references/aries-ac-economic-best-practices.md`.
-5. For forecast grammar, variable-length fixed-position expressions, ratio-line form, valid units, sections, and sequence rules, load `references/ac-economic-line-grammar.md`.
-6. For decline conversions, Dmin terminal-switch semantics, and ratio math, load `references/ac-economic-calculations.md`.
-7. For keyword/section lookup, load `references/ac-economic-keyword-catalog.md`.
-8. For PHDWin-to-ARIES Python exporter or source-table parsing work, load `references/phdwin-ac-economic-resolver.md`.
-9. For draft-only work, produce proposed lines plus assumptions, unknowns, and validation notes without asking for a database.
-10. Prefer the `tauris-aries` CLI for repeatable checks when SQLite exports or proposed JSON edits are present.
-11. Use this safe edit loop when source rows exist: decode SQLite to structured JSON, edit JSON, validate JSON, encode to a row export, then review the diff/output.
-12. For write-intended work, produce a dry-run summary first: source rows, proposed changed rows, assumptions, and rollback or restore plan.
+4. For building a generated ARIES Access database from PHDWin, Enverus, or other source data, load `references/ac-economic-builder-guide.md`.
+5. For AC_ECONOMIC taxonomy, scenario/qualifier behavior, section ordering, sidefile/lookup expansion, forecast lines, ownership lines, or Tauris conversion best practice, load `references/aries-ac-economic-best-practices.md`.
+6. For forecast grammar, variable-length fixed-position expressions, ratio-line form, valid units, sections, and sequence rules, load `references/ac-economic-line-grammar.md`.
+7. For decline conversions, Dmin terminal-switch semantics, and ratio math, load `references/ac-economic-calculations.md`.
+8. For keyword/section lookup, load `references/ac-economic-keyword-catalog.md`.
+9. For PHDWin-to-ARIES Python exporter or source-table parsing work, load `references/phdwin-ac-economic-resolver.md`.
+10. For draft-only work, produce proposed lines plus assumptions, unknowns, and validation notes without asking for a database.
+11. Prefer the `tauris-aries` CLI for repeatable checks when SQLite exports or proposed JSON edits are present.
+12. Use this safe edit loop when source rows exist: decode SQLite to structured JSON, edit JSON, validate JSON, encode to a row export, then review the diff/output.
+13. For write-intended work, produce a dry-run summary first: source rows, proposed changed rows, assumptions, and rollback or restore plan.
 
 ## Drafting Without A Database
 
@@ -61,6 +62,7 @@ If the binary is not installed on `PATH`, use the local publish output or run th
 ## References
 
 - `references/line-format.md`: curated field and line-format notes.
+- `references/ac-economic-builder-guide.md`: builder guide for generated ARIES Access databases, sparse non-PHDWin sources, fully working case criteria, and incremental-case best practices.
 - `references/aries-ac-economic-best-practices.md`: Tauris conversion best practices plus ARIES_UG001-derived taxonomy for sections, qualifiers, sidefiles/lookups, forecasts, ownership, and generated line ordering.
 - `references/ac-economic-line-grammar.md`: operational grammar for AC_ECONOMIC row shape, variable-length fixed-position expressions, terminal-Dmin switch rows, ratio lines, units, sections, qualifiers, and sequence rules.
 - `references/ac-economic-calculations.md`: decline conversion, terminal Dmin semantics, ratio math, and export calculation rules.

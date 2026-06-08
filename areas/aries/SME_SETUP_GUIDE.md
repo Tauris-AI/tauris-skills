@@ -26,6 +26,7 @@ For AC_ECONOMIC line work, start with:
 - `skills/aries-core/SKILL.md`
 - `skills/aries-ac-economic/SKILL.md`
 - `skills/aries-ac-economic/references/aries-ac-economic-best-practices.md`
+- `skills/aries-ac-economic/references/ac-economic-builder-guide.md`
 - `skills/aries-ac-economic/references/ac-economic-line-grammar.md`
 - `skills/aries-ac-economic/references/ac-economic-calculations.md`
 - `skills/aries-ac-economic/references/ac-economic-keyword-catalog.md`
@@ -33,7 +34,7 @@ For AC_ECONOMIC line work, start with:
 - `skills/aries-ac-economic/references/validation-rules.md`
 - `skills/aries-ac-economic/references/phdwin-ac-economic-resolver.md` when the task involves the Python MCP exporter or PHDWin source-table parsing
 
-This path does not require an ARIES database. Use it for creating proposed new lines, reviewing assumptions, and preparing dry-run edits.
+This path does not require an ARIES database. Use it for creating proposed new lines, reviewing assumptions, preparing dry-run edits, or planning a generated ARIES Access database from sparse non-PHDWin sources such as Enverus history.
 
 ## Optional Cowork MCP Server
 
@@ -58,7 +59,7 @@ areas/aries/mcp-servers/aries-mcp/cowork_config.example.json
 ## Recommended Prompt
 
 ```text
-Use the ARIES area in this repo. Start with areas/aries/skills/aries-core/SKILL.md and areas/aries/skills/aries-ac-economic/SKILL.md. For AC_ECONOMIC line work, read references/aries-ac-economic-best-practices.md, references/ac-economic-line-grammar.md, references/ac-economic-calculations.md, references/ac-economic-keyword-catalog.md, references/line-format.md, and references/validation-rules.md first. For PHDWin-to-ARIES Python exporter behavior, also read references/phdwin-ac-economic-resolver.md. Draft proposed new lines as a dry-run artifact. Do not ask for a database unless I specifically request inspection of a supplied `.accdb`, `.mdb`, or SQLite export.
+Use the ARIES area in this repo. Start with areas/aries/skills/aries-core/SKILL.md and areas/aries/skills/aries-ac-economic/SKILL.md. For AC_ECONOMIC line work, read references/ac-economic-builder-guide.md, references/aries-ac-economic-best-practices.md, references/ac-economic-line-grammar.md, references/ac-economic-calculations.md, references/ac-economic-keyword-catalog.md, references/line-format.md, and references/validation-rules.md first. For PHDWin-to-ARIES Python exporter behavior, also read references/phdwin-ac-economic-resolver.md. Draft proposed new lines as a dry-run artifact. For Enverus/history-only ARIES Access builds, classify each case as inspectable, runnable shell, or fully working economic case and label empty sections as empty by design. Do not ask for a database unless I specifically request inspection of a supplied `.accdb`, `.mdb`, or SQLite export.
 ```
 
 ## Usage

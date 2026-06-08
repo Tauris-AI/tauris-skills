@@ -55,4 +55,24 @@ Restart Cowork after editing the config.
 - `compact_repair`
 - `convert_to_accdb`
 
+## Builder Guidance
+
+Before using write tools to change `AC_ECONOMIC`, `AC_SCENARIO`, project, or
+sort/filter tables, use the area skill references to prepare a dry-run plan.
+
+For generated ARIES Access databases from Enverus/history or other sparse
+non-PHDWin sources, load:
+
+```text
+areas/aries/skills/aries-ac-economic/references/ac-economic-builder-guide.md
+```
+
+That guide defines:
+
+- inspectable case vs runnable shell vs fully working economic case
+- section-by-section `AC_ECONOMIC` expectations
+- when empty economics are valid
+- incremental-case best practices
+- dry-run evidence and validation checks before mutation
+
 Use `backup_table` before write tools on production databases.
