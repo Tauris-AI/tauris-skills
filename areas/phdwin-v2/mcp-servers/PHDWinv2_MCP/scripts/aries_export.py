@@ -5,6 +5,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import shutil
 import sqlite3
 from dataclasses import dataclass
@@ -16,6 +17,13 @@ from aries_economic import build_ac_economic_rows
 
 DEFAULT_DBSKEY = "168888"
 DEFAULT_PROJECT_KEY = "00_RSV_CAT"
+DEFAULT_SCENARIO_NAME = "ACTIVE"
+DEFAULT_DATA_QUALIFIER = "TAURIS"
+ACCESS_SCHEMA_EXTENSIONS = {
+    "AC_PROPERTY": [
+        {"name": "SRC_DB", "accdb_type": "VARCHAR(255)"},
+    ],
+}
 EXPORT_TABLE_ORDER = [
     "AC_PROPERTY",
     "AC_PRODUCT",
@@ -98,6 +106,12 @@ def sanitize_key(value: Any, max_len: int = 9) -> str:
     text = clean_text(value).upper()
     result = "".join(ch for ch in text if ch.isalnum() or ch == "_")
     return (result or "GROUP")[:max_len]
+
+
+def friendly_source_name(path: Path) -> str:
+    stem = re.sub(r"[-_]\d{4}-\d{2}-\d{2}$", "", path.stem)
+    name = re.sub(r"[^0-9A-Za-z]+", "_", stem).strip("_")
+    return name or "SOURCE"
 
 
 def propnum_for_lease(lease_id: int) -> str:
@@ -310,6 +324,7 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
     category_by_id = indexed(categories, "CAT_ID")
     leases_by_id = {to_int(row_get(lease, "LSE_ID")): lease for lease in leases}
     memberships = build_project_membership(leases, groups, list_rows, owners, selected_lease_ids)
+    source_db = friendly_source_name(source_sqlite)
 
     ac_property: list[dict[str, Any]] = []
     for lease in sorted(leases, key=lambda r: to_int(row_get(r, "LSE_ID"))):
@@ -331,6 +346,7 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         ac_property.append({
             "DBSKEY": DEFAULT_DBSKEY,
             "PROPNUM": propnum_for_lease(lease_id),
+            "SRC_DB": source_db,
             "SEQ": lease_id,
             "MAJOR": clean_text(row_get(product or {}, "DESCR", "DESCRIPTION", default="")),
             "PRIOR_OIL": 0,
@@ -546,13 +562,27 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         selfilters.extend(filters)
 
     scenarios: list[dict[str, Any]] = []
+    seen_scenarios: set[tuple[str, int]] = set()
+
+    def add_scenario(scen_name: str, data_sect: int, **values: Any) -> None:
+        key = (scen_name, data_sect)
+        if key in seen_scenarios:
+            return
+        row = {"DBSKEY": DEFAULT_DBSKEY, "SCEN_NAME": scen_name, "DATA_SECT": data_sect}
+        row.update(values)
+        scenarios.append(row)
+        seen_scenarios.add(key)
+
+    for section in range(1, 10):
+        add_scenario(DEFAULT_SCENARIO_NAME, section, QUAL0=DEFAULT_DATA_QUALIFIER)
+
     for group in groups:
         qualifier = group_qualifier(group)
         for section in range(1, 7):
-            scenarios.append({"DBSKEY": DEFAULT_DBSKEY, "SCEN_NAME": qualifier, "DATA_SECT": section})
+            add_scenario(qualifier, section)
         for section in (7, 8):
-            scenarios.append({"DBSKEY": DEFAULT_DBSKEY, "SCEN_NAME": qualifier, "DATA_SECT": section, "QUAL0": qualifier, "QUAL1": "TAURIS"})
-        scenarios.append({"DBSKEY": DEFAULT_DBSKEY, "SCEN_NAME": qualifier, "DATA_SECT": 9})
+            add_scenario(qualifier, section, QUAL0=qualifier, QUAL1=DEFAULT_DATA_QUALIFIER)
+        add_scenario(qualifier, 9)
 
     title = titles[0] if titles else {}
     asof = parse_date(row_get(title, "ASOF_DATE_DTTM", "ASOF_DATE", default="")) or date.today()
@@ -726,13 +756,8 @@ def _clean_name(value: Any) -> str:
 
 
 def access_columns(cursor: Any, table_name: str) -> list[str]:
-    columns = []
-    for row in cursor.columns(table=table_name):
-        try:
-            columns.append(_clean_name(row.column_name))
-        except AttributeError:
-            columns.append(_clean_name(row[3]))
-    return columns
+    cursor.execute(f"SELECT * FROM {q(table_name)} WHERE 1=0")
+    return [_clean_name(column[0]) for column in cursor.description]
 
 
 def access_table_names(cursor: Any) -> set[str]:
@@ -745,8 +770,54 @@ def access_table_names(cursor: Any) -> set[str]:
     return names
 
 
+def append_showids_column(cursor: Any, dbskey: str, column_name: str, warnings: list[str]) -> None:
+    tables = access_table_names(cursor)
+    if "DBSLIST" not in tables:
+        return
+    columns = {column.upper() for column in access_columns(cursor, "DBSLIST")}
+    if "DBSKEY" not in columns or "SHOWIDS" not in columns:
+        warnings.append("DBSLIST exists but is missing DBSKEY or SHOWIDS; SRC_DB display governance skipped.")
+        return
+    row = cursor.execute(f"SELECT {q('SHOWIDS')} FROM {q('DBSLIST')} WHERE {q('DBSKEY')} = ?", dbskey).fetchone()
+    if row is None:
+        warnings.append(f"DBSLIST row for DBSKEY {dbskey} was not found; SRC_DB was not appended to SHOWIDS.")
+        return
+    existing = "" if row[0] is None else str(row[0])
+    tokens = [token.strip() for token in existing.split(",") if token.strip()]
+    if any(token.upper() == column_name.upper() for token in tokens):
+        return
+    updated = ", ".join([*tokens, column_name]) if tokens else column_name
+    cursor.execute(
+        f"UPDATE {q('DBSLIST')} SET {q('SHOWIDS')} = ? WHERE {q('DBSKEY')} = ?",
+        updated,
+        dbskey,
+    )
+
+
 def q(identifier: str) -> str:
     return "[" + identifier.replace("]", "]]") + "]"
+
+
+def ensure_access_columns(cursor: Any, table_name: str, columns: list[str], warnings: list[str]) -> list[str]:
+    existing = {column.upper() for column in columns}
+    added = False
+    for spec in ACCESS_SCHEMA_EXTENSIONS.get(table_name.upper(), []):
+        column_name = spec["name"]
+        if column_name.upper() in existing:
+            continue
+        try:
+            cursor.execute(f"ALTER TABLE {q(table_name)} ADD COLUMN {q(column_name)} {spec['accdb_type']}")
+        except Exception as exc:
+            warnings.append(f"Could not add Access column {table_name}.{column_name}: {exc}")
+            continue
+        added = True
+    if not added:
+        return columns
+    try:
+        return access_columns(cursor, table_name)
+    except Exception as exc:
+        warnings.append(f"Could not re-read Access columns for {table_name} after schema extension: {exc}")
+        return columns
 
 
 def resolve_access_template_path(template_path: Path | None = None) -> Path:
@@ -789,6 +860,7 @@ def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path
                 continue
             rows = tables.get(table_name, [])
             columns = access_columns(cursor, table_name)
+            columns = ensure_access_columns(cursor, table_name, columns, warnings)
             columns_by_upper = {column.upper(): column for column in columns}
             try:
                 cursor.execute(f"DELETE FROM {q(table_name)}")
@@ -803,7 +875,11 @@ def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path
                 if column.upper() in columns_by_upper
             ]
             if not insert_columns:
-                warnings.append(f"No matching Access columns for {table_name}; rows skipped.")
+                row_keys = sorted({key for row in rows for key in row.keys()}, key=str.upper)
+                warnings.append(
+                    f"No matching Access columns for {table_name}; rows skipped. "
+                    f"access_cols={columns} rowkeys={row_keys}"
+                )
                 continue
             placeholders = ", ".join("?" for _ in insert_columns)
             sql = f"INSERT INTO {q(table_name)} ({', '.join(q(column) for column in insert_columns)}) VALUES ({placeholders})"
@@ -813,6 +889,7 @@ def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path
             ]
             cursor.fast_executemany = False
             cursor.executemany(sql, values)
+        append_showids_column(cursor, DEFAULT_DBSKEY, "SRC_DB", warnings)
         conn.commit()
     return warnings
 

@@ -55,8 +55,14 @@ def test_export_writes_forecast_review_rows() -> None:
 
         result = export_aries(sqlite_path, output_dir)
         rows = read_csv(output_dir / "csv" / "AC_ECONOMIC.csv")
+        property_rows = read_csv(output_dir / "csv" / "AC_PROPERTY.csv")
+        scenario_rows = read_csv(output_dir / "csv" / "AC_SCENARIO.csv")
 
         assert result.table_counts["AC_ECONOMIC"] == 9
+        assert property_rows[0]["SRC_DB"] == "source"
+        active_rows = [row for row in scenario_rows if row["SCEN_NAME"] == "ACTIVE"]
+        assert [row["DATA_SECT"] for row in active_rows] == [str(section) for section in range(1, 10)]
+        assert {row["QUAL0"] for row in active_rows} == {"TAURIS"}
         assert result.diagnostics is not None
         assert result.diagnostics["acEconomic"]["forecastReviewRowCount"] == 2
         assert result.diagnostics["acEconomic"]["econReviewRowCount"] == 1
