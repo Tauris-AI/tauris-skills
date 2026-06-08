@@ -19,6 +19,7 @@ docs/planning.md
 # Local helper scripts
 scripts/*
 !scripts/build_reference_sqlite_templates.py
+phdwin_cli_test.log
 
 # Raw database exports and local data
 *.bak

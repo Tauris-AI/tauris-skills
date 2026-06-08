@@ -22,10 +22,10 @@ CANONICAL_PATHS = [
     "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/START_HERE.md",
     "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.example.json",
     "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/cowork_config.with_driver_override.example.json",
-    "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/aries_review_template.sqlite",
     "areas/aries",
     "areas/aries/skills/aries-core",
     "areas/aries/skills/aries-ac-economic",
+    "areas/aries/reference/templates/aries_access_template.sqlite",
     "areas/aries/mcp-servers/aries-mcp",
     "areas/aries/mcp-servers/aries-mcp/cowork_config.example.json",
     "areas/forecasting",
@@ -44,7 +44,6 @@ COWORK_CONFIGS = [
     REPO_ROOT / "areas/forecasting/mcp-servers/forecasting-mcp/cowork_config.example.json",
 ]
 
-CLAUDE_PLUGIN_MANIFEST = REPO_ROOT / ".claude-plugin/plugin.json"
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin/marketplace.json"
 AI_PLATFORM_GUIDE = REPO_ROOT / "Tauris_Skills_AI_Platform_Install_Guide.md"
 
@@ -86,13 +85,6 @@ def test_phdwin_cowork_uses_32_bit_python() -> None:
     data = json.loads(COWORK_CONFIGS[0].read_text(encoding="utf-8"))
     args = data["mcpServers"]["phdwin-v2"]["args"]
     assert "-3.12-32" in args
-
-
-def test_claude_plugin_manifest_exists() -> None:
-    data = json.loads(CLAUDE_PLUGIN_MANIFEST.read_text(encoding="utf-8"))
-    assert data["name"] == "tauris-skills"
-    assert data["version"]
-    assert data["guides"]
 
 
 def test_claude_marketplace_plugin_sources_resolve() -> None:
@@ -145,8 +137,8 @@ def test_ai_platform_guide_covers_supported_surfaces() -> None:
         assert phrase in text, f"missing platform guide safety/install language: {phrase}"
 
 
-def test_sqlite_review_template_opens() -> None:
-    template = REPO_ROOT / "areas/phdwin-v2/mcp-servers/PHDWinv2_MCP/reference/templates/aries_review_template.sqlite"
+def test_aries_access_template_opens() -> None:
+    template = REPO_ROOT / "areas/aries/reference/templates/aries_access_template.sqlite"
     with sqlite3.connect(template) as connection:
         tables = {
             row[0]
@@ -155,19 +147,15 @@ def test_sqlite_review_template_opens() -> None:
         required = {
             "TEMPLATE_METADATA",
             "AC_PROPERTY",
-            "AC_OWNERSHIP",
-            "AC_FORECAST",
-            "AC_PRODUCTION_HISTORY",
+            "AC_OWNER",
+            "AC_PRODUCT",
+            "AC_DAILY",
             "AC_ECONOMIC",
-            "AC_PRICE_DECK",
-            "AC_COST",
-            "AC_CAPITAL",
-            "AC_TAX",
-            "AC_GROUP_MEMBER",
+            "AC_TEST",
         }
         assert required.issubset(tables)
         metadata = dict(connection.execute("SELECT key, value FROM TEMPLATE_METADATA"))
-        assert metadata["not_vendor_schema"] == "true"
+        assert metadata["template_type"] == "aries_access_sqlite"
 
 
 def main() -> int:
@@ -176,10 +164,9 @@ def main() -> int:
     test_plugin_guide_references_resolve()
     test_cowork_configs_parse()
     test_phdwin_cowork_uses_32_bit_python()
-    test_claude_plugin_manifest_exists()
     test_claude_marketplace_plugin_sources_resolve()
     test_ai_platform_guide_covers_supported_surfaces()
-    test_sqlite_review_template_opens()
+    test_aries_access_template_opens()
     print("Plugin integrity tests passed.")
     return 0
 

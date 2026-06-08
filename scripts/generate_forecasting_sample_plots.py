@@ -778,6 +778,26 @@ def selected_fit_origin_index(profile: dict[str, Any], row_dates: list[str], oil
     return oil[0][0] if oil else 0
 
 
+def normalized_chart_config(config: dict[str, Any]) -> dict[str, Any]:
+    result = dict(config)
+    plot_config = dict(result.get("plot", {}))
+    if "plotWidth" not in plot_config and {"left", "right"}.issubset(plot_config):
+        plot_config["plotWidth"] = int(plot_config["right"]) - int(plot_config["left"])
+    if "plotHeight" not in plot_config and {"top", "bottom"}.issubset(plot_config):
+        plot_config["plotHeight"] = int(plot_config["bottom"]) - int(plot_config["top"])
+    plot_config.setdefault("forecastDays", int(float(plot_config.get("forecastYears", 30)) * 365.25))
+    plot_config.setdefault("minHistoryDays", 365)
+    plot_config.setdefault("logSpanDecades", 4)
+    result["plot"] = plot_config
+
+    series_config = dict(result.get("series", {}))
+    pressure_series = result.get("pressure", {}).get("series", {})
+    for key, value in pressure_series.items():
+        series_config.setdefault(key, value)
+    result["series"] = series_config
+    return result
+
+
 def render_svg(
     well: str,
     rows: list[dict[str, Any]],
@@ -785,7 +805,7 @@ def render_svg(
     recommendation: dict[str, Any],
     config: dict[str, Any] | None = None,
 ) -> str:
-    config = config or load_chart_config(DEFAULT_CONFIG)
+    config = normalized_chart_config(config or load_chart_config(DEFAULT_CONFIG))
     plot_config = config["plot"]
     series_config = config["series"]
     guide_config = config["guides"]
