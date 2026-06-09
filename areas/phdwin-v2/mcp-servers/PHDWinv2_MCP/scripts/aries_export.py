@@ -24,6 +24,21 @@ ACCESS_SCHEMA_EXTENSIONS = {
         {"name": "SRC_DB", "accdb_type": "VARCHAR(255)"},
     ],
 }
+ACCESS_COLUMN_ALIASES = {
+    "AC_PRODUCT": {
+        "DAYSON": ("DAYS_ON",),
+    },
+    "AC_TEST": {
+        "T_DATE": ("DATE", "TEST_DATE"),
+        "WTR_RATE": ("WATER_RATE",),
+        "M_FWHP": ("TUBINGPRESSURE",),
+        "C_SIWHP": ("CASINGPRESSURE", "SITP"),
+    },
+    "AC_DAILY": {
+        "D_DATE": ("DATE",),
+        "WATER": ("WATER_RATE",),
+    },
+}
 EXPORT_TABLE_ORDER = [
     "AC_PROPERTY",
     "AC_PRODUCT",
@@ -760,6 +775,19 @@ def access_columns(cursor: Any, table_name: str) -> list[str]:
     return [_clean_name(column[0]) for column in cursor.description]
 
 
+def access_column_schema(cursor: Any, table_name: str) -> dict[str, dict[str, Any]]:
+    schema: dict[str, dict[str, Any]] = {}
+    for row in cursor.columns(table=table_name):
+        column_name = _clean_name(row.column_name)
+        schema[column_name.upper()] = {
+            "name": column_name,
+            "data_type": int(row.data_type),
+            "type_name": _clean_name(row.type_name).upper(),
+            "column_size": int(row.column_size or 0),
+        }
+    return schema
+
+
 def access_table_names(cursor: Any) -> set[str]:
     names = set()
     for row in cursor.tables(tableType="TABLE"):
@@ -834,6 +862,41 @@ def resolve_access_template_path(template_path: Path | None = None) -> Path:
     )
 
 
+def coerce_access_value(value: Any, schema: dict[str, Any]) -> Any:
+    if value is None or value == "":
+        return None
+
+    data_type = int(schema.get("data_type", 0))
+    type_name = str(schema.get("type_name", "")).upper()
+
+    if data_type in {91, 92, 93} or "DATE" in type_name or "TIME" in type_name:
+        parsed = parse_date(value)
+        return datetime.combine(parsed, datetime.min.time()) if parsed else None
+
+    if data_type in {-6, 2, 3, 4, 5} or type_name in {"BYTE", "SHORT", "INTEGER", "LONG"}:
+        return to_int(value)
+
+    if data_type in {6, 7, 8} or type_name in {"SINGLE", "DOUBLE", "DECIMAL", "NUMERIC", "CURRENCY"}:
+        return to_float(value)
+
+    text = clean_text(value)
+    column_size = int(schema.get("column_size", 0))
+    if column_size > 0 and column_size < 100000 and len(text) > column_size:
+        return text[:column_size]
+    return text
+
+
+def access_row_value(row: dict[str, Any], table_name: str, column: str) -> Any:
+    value = row_get(row, column, default=None)
+    if value not in {None, ""}:
+        return value
+    for alias in ACCESS_COLUMN_ALIASES.get(table_name.upper(), {}).get(column.upper(), ()):
+        value = row_get(row, alias, default=None)
+        if value not in {None, ""}:
+            return value
+    return value
+
+
 def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path: Path, output_path: Path) -> list[str]:
     warnings: list[str] = []
     try:
@@ -861,6 +924,7 @@ def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path
             rows = tables.get(table_name, [])
             columns = access_columns(cursor, table_name)
             columns = ensure_access_columns(cursor, table_name, columns, warnings)
+            schema_by_upper = access_column_schema(cursor, table_name)
             columns_by_upper = {column.upper(): column for column in columns}
             try:
                 cursor.execute(f"DELETE FROM {q(table_name)}")
@@ -869,22 +933,33 @@ def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path
                 continue
             if not rows:
                 continue
+            row_keys = {key for row in rows for key in row.keys()}
+            row_keys_upper = {key.upper() for key in row_keys}
+            alias_targets = {
+                target
+                for target, aliases in ACCESS_COLUMN_ALIASES.get(table_name.upper(), {}).items()
+                if target.upper() in columns_by_upper
+                and any(alias.upper() in row_keys_upper for alias in aliases)
+            }
             insert_columns = [
                 columns_by_upper[column.upper()]
-                for column in sorted({key for row in rows for key in row.keys()}, key=str.upper)
+                for column in sorted(row_keys | alias_targets, key=str.upper)
                 if column.upper() in columns_by_upper
             ]
             if not insert_columns:
-                row_keys = sorted({key for row in rows for key in row.keys()}, key=str.upper)
+                sorted_row_keys = sorted(row_keys, key=str.upper)
                 warnings.append(
                     f"No matching Access columns for {table_name}; rows skipped. "
-                    f"access_cols={columns} rowkeys={row_keys}"
+                    f"access_cols={columns} rowkeys={sorted_row_keys}"
                 )
                 continue
             placeholders = ", ".join("?" for _ in insert_columns)
             sql = f"INSERT INTO {q(table_name)} ({', '.join(q(column) for column in insert_columns)}) VALUES ({placeholders})"
             values = [
-                [row_get(row, column, default=None) for column in insert_columns]
+                [
+                    coerce_access_value(access_row_value(row, table_name, column), schema_by_upper[column.upper()])
+                    for column in insert_columns
+                ]
                 for row in rows
             ]
             cursor.fast_executemany = False

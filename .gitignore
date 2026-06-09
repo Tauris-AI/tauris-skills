@@ -16,6 +16,13 @@ private/
 # Local planning
 docs/planning.md
 
+# Local end-to-end test workspaces
+e2e-local/**
+!e2e-local/
+!e2e-local/README.md
+!e2e-local/*/
+!e2e-local/*/README.md
+
 # Local helper scripts
 scripts/*
 !scripts/build_reference_sqlite_templates.py

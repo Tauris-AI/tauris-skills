@@ -73,6 +73,24 @@ tauris-skills/
 - `areas/phdwin-v2/mcp-servers/PHDWinv2_MCP`: read-only PHDWin v2 inspection, `.phz` extraction, table sampling, SQLite/CSV exports, PHDWin-to-Aries conversion-readiness review, and optional Aries Access export reference material.
 - `areas/forecasting/mcp-servers/forecasting-mcp`: production/pressure CSV profiling and per-well forecast method recommendation.
 
+## Testing
+
+Committed smoke tests live under `scripts/` and are run by GitHub Actions:
+
+```bash
+python3 scripts/test_forecasting_mcp.py
+python3 scripts/test_plugin_integrity.py
+```
+
+For local end-to-end testing, use the top-level `e2e-local/` workspace. README files are tracked, but generated files, source databases, SQLite review databases, CSV exports, logs, screenshots, and AI transcripts are ignored:
+
+- `e2e-local/aries/`
+- `e2e-local/phdwin-v2/`
+- `e2e-local/forecasting/`
+- `e2e-local/petroleum-economics/`
+
+Use those folders for Claude Cowork, MCP, and workflow-level tests that need local data or generated artifacts. Keeping E2E workspaces outside `areas/` prevents local test data from being packaged with area/plugin releases.
+
 ## Claude Cowork Plugins
 
 - `plugins/claude-cowork/phdwin-v2`: Cowork MCP install guide for PHDWin v2 inspection and PHDWin-to-Aries review.
