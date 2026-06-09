@@ -13,6 +13,46 @@ This repository is intended to be the source of truth for curated domain skills 
 
 Use area docs as the canonical source when updating domain behavior. Use plugin docs only to describe how a tool loads or invokes that behavior.
 
+### Repository Map
+
+```text
+tauris-skills/
+`-- areas/
+    |-- aries/                         <-- plugin "aries"
+    |   |-- .claude-plugin/plugin.json
+    |   |-- skills/
+    |   |   |-- aries-core/            SKILL.md + references/
+    |   |   `-- aries-ac-economic/     SKILL.md + references/ + scripts/
+    |   |-- mcp-servers/aries-mcp/     direct .accdb/.mdb read/write/backup
+    |   `-- reference/templates/       aries_access_template.sqlite, README.md
+    |
+    |-- phdwin-v2/                     <-- plugin "phdwin-v2"
+    |   |-- .claude-plugin/plugin.json
+    |   |-- skills/phdwin-v2-querying/ SKILL.md + references/ + scripts/ + adapters/ + agents/
+    |   `-- mcp-servers/PHDWinv2_MCP/  inspection + conversion + export tools
+    |       |-- START_HERE.md
+    |       |-- PHDWIN_TO_ARIES_PLAYBOOK.md
+    |       |-- PHDWIN_TO_ARIES_TABLE_MAP.md
+    |       |-- scripts/               phdwin_mcp_server.py, aries_export.py, ...
+    |       |-- data/
+    |       `-- reference/
+    |           |-- aries-conv-docs/   ARIES_ACCESS_TABLE_CONTRACTS.md, ARIES_AC_PROPERTY_RULES.md,
+    |           |                      ARIES_ACCESS_EXPORT_PLAN.md, ARIES_EXPORT_RUNNING_LIST.md,
+    |           |                      ARIES_SCHEMA_MAPPING.md, PHDWIN_DATA_MAP.md, ...
+    |           `-- phdwin-v2/         Phdwinout definitions_complete.xls
+    |
+    |-- forecasting/                   <-- plugin "forecasting"
+    |   |-- .claude-plugin/plugin.json
+    |   |-- skills/auto-forecasting/   SKILL.md
+    |   |-- mcp-servers/forecasting-mcp/  + data/
+    |   |-- references/
+    |   `-- assets/
+    |
+    `-- petroleum-economics/           <-- plugin "petroleum-economics"
+        |-- .claude-plugin/plugin.json
+        `-- skills/petroleum-economics-review/  SKILL.md + references/
+```
+
 ## Areas
 
 - `areas/aries`: ARIES concepts, Access table contracts, economic table review, and ARIES skill setup.
