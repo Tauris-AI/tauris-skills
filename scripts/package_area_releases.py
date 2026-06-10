@@ -11,7 +11,15 @@ from zipfile import ZIP_DEFLATED, ZipFile
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AREAS_ROOT = REPO_ROOT / "areas"
 DIST_ROOT = REPO_ROOT / "dist"
-DEFAULT_AREAS = ("phdwin-v2", "aries", "petroleum-economics")
+DEFAULT_AREAS = ("phdwin-v2", "aries", "forecasting", "petroleum-economics")
+
+# Areas that depend on the shared ARIES writer (areas/aries/lib + areas/aries/mcp-servers/aries-mcp/aries_access_writer.py).
+# These files are bundled into consumer zips so they work standalone.
+ARIES_WRITER_DEPS = (
+    Path("aries/lib/aries_writer.py"),
+    Path("aries/mcp-servers/aries-mcp/aries_access_writer.py"),
+)
+AREAS_NEEDING_ARIES_WRITER = {"phdwin-v2", "forecasting"}
 
 EXCLUDED_PARTS = {
     "__pycache__",
@@ -98,6 +106,12 @@ def package_area(area_name: str, version: str, dist_root: Path, include_version:
                 continue
             archive_name = Path(area_name) / path.relative_to(area_root)
             archive.write(path, archive_name.as_posix())
+        # Bundle shared ARIES writer dependency for consumer areas.
+        if area_name in AREAS_NEEDING_ARIES_WRITER:
+            for dep in ARIES_WRITER_DEPS:
+                dep_path = AREAS_ROOT / dep
+                if dep_path.exists():
+                    archive.write(dep_path, dep.as_posix())
     return zip_path
 
 

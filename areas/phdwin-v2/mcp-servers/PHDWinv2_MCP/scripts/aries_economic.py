@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +21,12 @@ ECONOMIC_RECOMMENDED_TABLES = [
     "MOD_SCEN",
     "MOD_TEMPLATE",
 ]
+
+ECONOMIC_STATUS_EMPTY = "empty"
+ECONOMIC_STATUS_REVIEW_ROWS_ONLY = "review_rows_only"
+ECONOMIC_STATUS_FINAL_ROWS_PRESENT = "final_rows_present"
+ECONOMIC_STATUS_MIXED_REVIEW_AND_FINAL = "mixed_review_and_final"
+REVIEW_QUALIFIER = "PY_REVIEW"
 
 FORECAST_FIELD_CANDIDATES = [
     "LSE_ID",
@@ -190,6 +197,45 @@ PRODUCT_NAME_FIELDS = [
     "PRODUCT_NAME",
     "LABEL",
 ]
+
+# ─── ARIES keyword and unit mappings ─────────────────────────────────────────
+
+PRODUCT_ARIES_KEYWORD: dict[int, str] = {
+    1: "GAS",
+    2: "OIL",
+    3: "WTR",
+    4: "NGL",
+    5: "CND",
+}
+
+PRODUCT_RATE_UNIT: dict[int, str] = {
+    1: "M/M",    # Gas: Mcf/month
+    2: "B/M",    # Oil: bbl/month
+    3: "B/M",    # Water: bbl/month
+    4: "B/M",    # NGL: bbl/month
+    5: "B/M",    # Condensate: bbl/month
+}
+
+PRODUCT_PRICE_UNIT: dict[int, str] = {
+    1: "$/M",    # Gas: $/Mcf
+    2: "$/B",    # Oil: $/bbl
+    3: "$/B",    # Water: $/bbl
+    4: "$/B",    # NGL: $/bbl
+    5: "$/B",    # Condensate: $/bbl
+}
+
+INVEST_KEYWORD_MAP: dict[str, str] = {
+    "DRILLING": "DRILL",
+    "DRILL": "DRILL",
+    "COMPLETION": "COMPL",
+    "COMPL": "COMPL",
+    "WORKOVER": "WRKOVR",
+    "WRKOVR": "WRKOVR",
+    "ABANDONMENT": "CAPITAL",
+    "ABANDON": "CAPITAL",
+}
+
+DEFAULT_INVEST_KEYWORD = "CAPITAL"
 
 
 @dataclass
@@ -363,7 +409,7 @@ def _build_forecast_review_rows(
                 "PROPNUM": _propnum_for_lease(lease_id),
                 "SECTION": 1,
                 "SEQUENCE": sequence,
-                "QUALIFIER": "PY_REVIEW",
+                "QUALIFIER": REVIEW_QUALIFIER,
                 "KEYWORD": "PY_REVIEW_FORECAST",
                 "EXPRESSION": expression,
                 "LINE": "PY_REVIEW_FORECAST " + expression,
@@ -402,7 +448,7 @@ def _build_source_review_rows(
                 "PROPNUM": _propnum_for_lease(lease_id),
                 "SECTION": section,
                 "SEQUENCE": sequence,
-                "QUALIFIER": "PY_REVIEW",
+                "QUALIFIER": REVIEW_QUALIFIER,
                 "KEYWORD": keyword,
                 "EXPRESSION": expression,
                 "LINE": keyword + " " + expression,
@@ -440,7 +486,7 @@ def _build_invest_review_rows(
                 "PROPNUM": _propnum_for_lease(lease_id),
                 "SECTION": 3,
                 "SEQUENCE": sequence,
-                "QUALIFIER": "PY_REVIEW",
+                "QUALIFIER": REVIEW_QUALIFIER,
                 "KEYWORD": "PY_REVIEW_INVEST",
                 "EXPRESSION": expression,
                 "LINE": "PY_REVIEW_INVEST " + expression,
@@ -454,120 +500,487 @@ def _build_invest_review_rows(
     return result, unmatched_description_count
 
 
+# ─── Decline convention conversion ───────────────────────────────────────────
+
+def _nominal_to_effective_annual(di_nominal: float, b: float = 0.0) -> float:
+    """Convert nominal annual decline rate to effective annual decline.
+
+    For exponential (b=0): D_eff = 1 - exp(-Di_nom)
+    For hyperbolic (b>0): D_eff = 1 - (1 + b * Di_nom)^(-1/b)
+    """
+    if di_nominal <= 0:
+        return 0.0
+    if b <= 0:
+        return 1.0 - math.exp(-di_nominal)
+    return 1.0 - (1.0 + b * di_nominal) ** (-1.0 / b)
+
+
+def _format_decline_pct(value: float) -> str:
+    """Format effective annual decline as a percentage value for ARIES expressions."""
+    if value <= 0:
+        return "0"
+    return f"{value * 100:.6f}"
+
+
+# ─── Final ARIES row builders ────────────────────────────────────────────────
+#
+# Each builder follows the section-by-section map in:
+#   references/ac-economic-builder-guide.md
+#   references/ac-economic-line-grammar.md
+#   references/ac-economic-keyword-catalog.md
+#
+# Expression formats are the verified Tauris patterns from the grammar reference.
+# Decline values are converted to effective annual per ac-economic-calculations.md.
+
+
+def _build_final_title_rows(
+    lease_rows: list[dict[str, Any]],
+    selected_lease_ids: set[int] | None,
+) -> list[dict[str, Any]]:
+    """Generate Section 1 TITLES rows from PHD_MAINLSE.
+
+    Builder guide §1: ``TITLES <lease id>, <lease name>``
+    Keep unqualified; section 1 is not scenario-selected.
+    """
+    scoped = _filter_rows_by_lease(lease_rows, selected_lease_ids)
+    result: list[dict[str, Any]] = []
+
+    for row in sorted(scoped, key=lambda r: _lease_id(r)):
+        lease_id = _lease_id(row)
+        propnum = _propnum_for_lease(lease_id)
+        lse_name = _clean_value(_row_get(row, "LSE_NAME", "LEASE_NAME", "NAME", default=""))
+
+        expression = f"{propnum}, {lse_name}" if lse_name else propnum
+        result.append({
+            "PROPNUM": propnum, "SECTION": 1, "SEQUENCE": 0,
+            "QUALIFIER": "", "KEYWORD": "TITLES",
+            "EXPRESSION": expression,
+        })
+
+    return result
+
+
+def _build_final_forecast_rows(
+    forecast_rows: list[dict[str, Any]],
+    selected_lease_ids: set[int] | None,
+    product_names: dict[int, str],
+) -> list[dict[str, Any]]:
+    """Generate Section 4 ARIES forecast rows from PHD_FORCAST.
+
+    Builder guide §4 + line-grammar + calculations reference:
+    - Precede each property's forecast with ``START`` when a start date is available.
+    - Phase keyword for the first segment of a product; ``"`` for continuations.
+    - Decline convention: convert nominal DI to effective annual per calculations ref.
+    - Exponential (b=0): ``<qi> X <unit> TO LIFE EXP <di_eff_annual>``
+    - Hyperbolic (b>0): ``<qi> X <unit> TO LIFE B/<b> <di_eff_annual>``
+    - Hyperbolic with Dmin: paired terminal-switch rows per grammar ref.
+    """
+    scoped = _filter_rows_by_lease(forecast_rows, selected_lease_ids)
+    scoped = [row for row in scoped if _has_nonzero_forecast(row)]
+    result: list[dict[str, Any]] = []
+
+    # Group by lease to emit START and per-product phase keywords
+    from itertools import groupby
+    sorted_rows = sorted(scoped, key=_forecast_sort_key)
+    for lease_id, lease_group in groupby(sorted_rows, key=_lease_id):
+        propnum = _propnum_for_lease(lease_id)
+        lease_rows_list = list(lease_group)
+
+        # Emit START if any row has a start date
+        start_date = ""
+        for row in lease_rows_list:
+            start_date = _clean_value(_row_get(
+                row, "START_DTTM", "STARTDATE", "START_DATE", default="",
+            ))
+            if start_date:
+                break
+        if start_date:
+            result.append({
+                "PROPNUM": propnum, "SECTION": 4, "SEQUENCE": 0,
+                "QUALIFIER": "", "KEYWORD": "START",
+                "EXPRESSION": start_date,
+            })
+
+        # Track which phase keywords have been emitted for ditto handling
+        emitted_phases: set[str] = set()
+
+        for row in lease_rows_list:
+            product_code = _product_code(row)
+            qi = _to_float(_row_get(row, "Q", "QI", "RATE"))
+            di = _to_float(_row_get(row, "DI", "DECLINE"))
+            b = _to_float(_row_get(row, "B", "EXPONENT"))
+            dmin = _to_float(_row_get(row, "D_MIN", "DMIN"))
+
+            phase_kw = PRODUCT_ARIES_KEYWORD.get(product_code)
+            unit = PRODUCT_RATE_UNIT.get(product_code)
+            if not phase_kw or not unit or qi <= 0:
+                continue
+
+            # First row for this phase uses the phase keyword; continuations use "
+            if phase_kw in emitted_phases:
+                keyword = '"'
+            else:
+                keyword = phase_kw
+                emitted_phases.add(phase_kw)
+
+            # Convert nominal decline to effective annual (calculations ref)
+            di_eff = _nominal_to_effective_annual(di, b)
+            di_eff_pct = _format_decline_pct(di_eff)
+
+            if b > 0 and dmin > 0:
+                # Hyperbolic with terminal Dmin — paired terminal-switch (grammar ref)
+                # Line 1: <qi> X <unit> <dmin_eff> EXP B/<b> <di_eff>
+                # Line 2: X 0 <unit> X AD EXP <dmin_eff>
+                dmin_eff = _nominal_to_effective_annual(dmin, 0.0)
+                dmin_eff_pct = _format_decline_pct(dmin_eff)
+                expression = f"{qi:.1f} X {unit} {dmin_eff_pct} EXP B/{b:.4f} {di_eff_pct}"
+                result.append({
+                    "PROPNUM": propnum, "SECTION": 4, "SEQUENCE": 0,
+                    "QUALIFIER": "", "KEYWORD": keyword,
+                    "EXPRESSION": expression,
+                })
+                term_expr = f"X 0 {unit} X AD EXP {dmin_eff_pct}"
+                result.append({
+                    "PROPNUM": propnum, "SECTION": 4, "SEQUENCE": 0,
+                    "QUALIFIER": "", "KEYWORD": '"',
+                    "EXPRESSION": term_expr,
+                })
+            elif b > 0:
+                # Hyperbolic without Dmin (grammar ref: Arps form)
+                expression = f"{qi:.1f} X {unit} TO LIFE B/{b:.4f} {di_eff_pct}"
+                result.append({
+                    "PROPNUM": propnum, "SECTION": 4, "SEQUENCE": 0,
+                    "QUALIFIER": "", "KEYWORD": keyword,
+                    "EXPRESSION": expression,
+                })
+            else:
+                # Exponential b=0 (grammar ref: EXP form)
+                expression = f"{qi:.1f} X {unit} TO LIFE EXP {di_eff_pct}"
+                result.append({
+                    "PROPNUM": propnum, "SECTION": 4, "SEQUENCE": 0,
+                    "QUALIFIER": "", "KEYWORD": keyword,
+                    "EXPRESSION": expression,
+                })
+
+    return result
+
+
+def _build_final_price_rows(
+    prodval_rows: list[dict[str, Any]],
+    selected_lease_ids: set[int] | None,
+    product_names: dict[int, str],
+) -> list[dict[str, Any]]:
+    """Generate Section 5 ARIES price rows from PHD_LSEPRODVAL.
+
+    Builder guide §5 + keyword catalog:
+    ``PRI/<phase> <value> X <unit> TO LIFE PC 0``
+    Use PC 0 for flat/no escalation per best practices.
+    """
+    scoped = _filter_rows_by_lease(prodval_rows, selected_lease_ids)
+    result: list[dict[str, Any]] = []
+
+    for row in sorted(scoped, key=_generic_source_sort_key):
+        lease_id = _lease_id(row)
+        propnum = _propnum_for_lease(lease_id)
+        price = _to_float(_row_get(row, "PRICE", "VALUE"))
+        product_code = _product_code(row)
+
+        if price <= 0:
+            continue
+
+        phase = PRODUCT_ARIES_KEYWORD.get(product_code, "OIL")
+        price_unit = PRODUCT_PRICE_UNIT.get(product_code, "$/B")
+        keyword = f"PRI/{phase}"
+        expression = f"{price:.2f} X {price_unit} TO LIFE PC 0"
+        result.append({
+            "PROPNUM": propnum, "SECTION": 5, "SEQUENCE": 0,
+            "QUALIFIER": "", "KEYWORD": keyword,
+            "EXPRESSION": expression,
+        })
+
+    return result
+
+
+def _build_primary_product_by_lease(
+    forecast_rows: list[dict[str, Any]],
+    selected_lease_ids: set[int] | None,
+) -> dict[int, int]:
+    """Determine each lease's primary product code from its highest-rate forecast row."""
+    scoped = _filter_rows_by_lease(forecast_rows, selected_lease_ids)
+    best: dict[int, tuple[float, int]] = {}
+    for row in scoped:
+        lid = _lease_id(row)
+        qi = _to_float(_row_get(row, "Q", "QI", "RATE"))
+        pc = _product_code(row)
+        if pc > 0 and qi > 0:
+            if lid not in best or qi > best[lid][0]:
+                best[lid] = (qi, pc)
+    return {lid: pc for lid, (_, pc) in best.items()}
+
+
+def _build_final_expense_rows(
+    econ_rows: list[dict[str, Any]],
+    selected_lease_ids: set[int] | None,
+    primary_product_by_lease: dict[int, int] | None = None,
+) -> list[dict[str, Any]]:
+    """Generate Section 6 ARIES expense rows from PHD_ECON.
+
+    Builder guide §6 + keyword catalog:
+    ``OPC/<phase> <cost> X $/B TO LIFE PC 0`` for per-unit variable costs.
+    PHDWin OPCOST is treated as per-unit operating cost assigned to the
+    primary product phase for the lease.
+    Use PC 0 for flat/no escalation per best practices.
+    """
+    if primary_product_by_lease is None:
+        primary_product_by_lease = {}
+    scoped = _filter_rows_by_lease(econ_rows, selected_lease_ids)
+    result: list[dict[str, Any]] = []
+
+    for row in sorted(scoped, key=_generic_source_sort_key):
+        lease_id = _lease_id(row)
+        propnum = _propnum_for_lease(lease_id)
+        opcost = _to_float(_row_get(row, "OPCOST", "FIXED_COST", "LOE", "VAR_COST"))
+
+        if opcost <= 0:
+            continue
+
+        # Use the primary product phase for the lease; default to OIL
+        primary_pc = primary_product_by_lease.get(lease_id, 2)
+        phase = PRODUCT_ARIES_KEYWORD.get(primary_pc, "OIL")
+        cost_unit = PRODUCT_PRICE_UNIT.get(primary_pc, "$/B")
+        keyword = f"OPC/{phase}"
+
+        expression = f"{opcost:.2f} X {cost_unit} TO LIFE PC 0"
+        result.append({
+            "PROPNUM": propnum, "SECTION": 6, "SEQUENCE": 0,
+            "QUALIFIER": "", "KEYWORD": keyword,
+            "EXPRESSION": expression,
+        })
+
+    return result
+
+
+def _build_final_ownership_rows(
+    owner_rows: list[dict[str, Any]],
+    selected_lease_ids: set[int] | None,
+) -> list[dict[str, Any]]:
+    """Generate Section 7 ARIES ownership rows from PHD_OWNER.
+
+    Builder guide §7 + keyword catalog:
+    ``NET <wi%> <oil-nri%> <gas-nri%> %``
+    Use first ownership row per lease (SEQ=1).
+    """
+    scoped = _filter_rows_by_lease(owner_rows, selected_lease_ids)
+    result: list[dict[str, Any]] = []
+
+    # Group by lease, take first sequence per lease
+    seen_leases: set[int] = set()
+    for row in sorted(scoped, key=_generic_source_sort_key):
+        lease_id = _lease_id(row)
+        if lease_id in seen_leases:
+            continue
+        seen_leases.add(lease_id)
+
+        propnum = _propnum_for_lease(lease_id)
+        wrkint = _to_float(_row_get(row, "WRKINT", "WI", "WORKING_INTEREST"))
+        revint = _to_float(_row_get(row, "REVINT", "NRI", "NET_REVENUE_INTEREST", "LSENRI"))
+
+        if wrkint <= 0 and revint <= 0:
+            continue
+
+        # ARIES ownership is in percent; PHDWin stores as fraction
+        wi_pct = wrkint * 100.0 if wrkint <= 1.0 else wrkint
+        ri_pct = revint * 100.0 if revint <= 1.0 else revint
+
+        # NET <wi%> <nri%> %
+        # PHDWin provides a single NRI; use the 2-value form per real ARIES data.
+        # The 3-value form (oil-nri gas-nri) is used only when they differ.
+        expression = f"{wi_pct:.5f} {ri_pct:.5f} %"
+        result.append({
+            "PROPNUM": propnum, "SECTION": 7, "SEQUENCE": 0,
+            "QUALIFIER": "", "KEYWORD": "NET",
+            "EXPRESSION": expression,
+        })
+
+    return result
+
+
+def _build_final_invest_rows(
+    invest_rows: list[dict[str, Any]],
+    descriptions: list[dict[str, Any]],
+    selected_lease_ids: set[int] | None,
+) -> list[dict[str, Any]]:
+    """Generate Section 8 ARIES investment rows from PHD_INVEST.
+
+    Builder guide §8 + keyword catalog:
+    ``<keyword> <tangible> <intangible> G <schedule> PC 0``
+    For drilling, total goes in the intangible position (0 <amount> G).
+    Schedule defaults to ``0 YRS`` when no date is available.
+    """
+    description_by_id = _build_invest_description_index(descriptions)
+    scoped = _filter_rows_by_lease(invest_rows, selected_lease_ids)
+    result: list[dict[str, Any]] = []
+
+    for row in sorted(scoped, key=_generic_source_sort_key):
+        lease_id = _lease_id(row)
+        propnum = _propnum_for_lease(lease_id)
+        amount = _to_float(_row_get(row, "AMOUNT", "COST", "CAPITAL"))
+        tangible = _to_float(_row_get(row, "TANGIBLE"))
+        intangible = _to_float(_row_get(row, "INTANGIBLE"))
+
+        if amount <= 0 and tangible <= 0 and intangible <= 0:
+            continue
+
+        # Resolve investment keyword from description
+        description_key = _row_key(row, INVEST_DESCRIPTION_ID_FIELDS)
+        desc_row = description_by_id.get(description_key) if description_key else None
+        desc_text = _description_text(desc_row).upper() if desc_row else ""
+        keyword = INVEST_KEYWORD_MAP.get(desc_text, DEFAULT_INVEST_KEYWORD)
+
+        # Use tangible/intangible split if available
+        if tangible > 0 or intangible > 0:
+            tang_val = tangible
+            intang_val = intangible
+        elif keyword == "DRILL":
+            # Drilling costs are typically intangible
+            tang_val = 0
+            intang_val = amount
+        else:
+            tang_val = amount
+            intang_val = 0
+
+        # Schedule: use date if available, else 0 YRS
+        inv_date = _clean_value(_row_get(row, "DATE_DTTM", "DATE", default=""))
+        if inv_date:
+            schedule = f"{inv_date} AD"
+        else:
+            schedule = "0 YRS"
+
+        expression = f"{tang_val:.0f} {intang_val:.0f} G {schedule} PC 0"
+        result.append({
+            "PROPNUM": propnum, "SECTION": 8, "SEQUENCE": 0,
+            "QUALIFIER": "", "KEYWORD": keyword,
+            "EXPRESSION": expression,
+        })
+
+    return result
+
+
+def _resequence_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sort rows by PROPNUM, SECTION and assign contiguous SEQUENCE numbers."""
+    sorted_rows = sorted(rows, key=lambda r: (r.get("PROPNUM", ""), r.get("SECTION", 0)))
+    prev_key = None
+    seq = 0
+    for row in sorted_rows:
+        key = (row.get("PROPNUM", ""), row.get("SECTION", 0))
+        if key != prev_key:
+            seq = 1
+            prev_key = key
+        else:
+            seq += 1
+        row["SEQUENCE"] = seq
+    return sorted_rows
+
+
 def build_ac_economic_rows(
     source_tables: dict[str, list[dict[str, Any]]],
     selected_lease_ids: set[int] | None = None,
 ) -> AcEconomicBuildResult:
     """Build AC_ECONOMIC rows from PHDWin source tables.
 
-    This is currently a diagnostics scaffold. It centralizes the economics
-    entry point so deep-fidelity generation can be added behind tests without
-    burying the logic in aries_export.py.
+    Follows the builder pass order from ac-economic-builder-guide.md:
+    1. Section 1: Titles from PHD_MAINLSE
+    2. Section 4: Forecast from PHD_FORCAST (START, OIL, GAS, WTR)
+    3. Section 5: Prices from PHD_LSEPRODVAL (PRI/<phase>)
+    4. Section 6: Expenses from PHD_ECON (OPC/OIL)
+    5. Section 7: Ownership from PHD_OWNER (NET)
+    6. Section 8: Investments from PHD_INVEST (DRILL, CAPITAL)
+    7. Resequence by PROPNUM + SECTION
+
+    Tables routed elsewhere (not AC_ECONOMIC):
+    - MOD_SCEN / MOD_TEMPLATE → AC_SCENARIO + qualifier selection
+    - PHD_CUMVOL → AC_PROPERTY PRIOR_OIL/GAS/WTR
+    - PHD_LSESEGMENT → merged into forecast context
     """
+    CANONICAL_COLS = {"PROPNUM", "SECTION", "SEQUENCE", "QUALIFIER", "KEYWORD", "EXPRESSION"}
+
     normalized = {name.upper(): rows for name, rows in source_tables.items()}
+
+    # Source table inventory
+    economic_tables = [
+        "PHD_MAINLSE", "PHD_FORCAST", "PHD_ECON", "PHD_INVEST",
+        "PHD_INVESTDESCR", "PHD_LSEPRODVAL", "PHD_OWNER",
+    ]
+    routed_tables = ["MOD_SCEN", "MOD_TEMPLATE", "PHD_CUMVOL", "PHD_LSESEGMENT"]
     table_counts = {
         table: len(normalized.get(table, []))
-        for table in ECONOMIC_REQUIRED_TABLES + ECONOMIC_RECOMMENDED_TABLES
-    }
-    missing_required = [
-        table
-        for table in ECONOMIC_REQUIRED_TABLES
-        if table_counts.get(table, 0) == 0
-    ]
-    missing_recommended = [
-        table
-        for table in ECONOMIC_RECOMMENDED_TABLES
-        if table_counts.get(table, 0) == 0
-    ]
-
-    scoped_counts = {
-        table: len(_filter_rows_by_lease(normalized.get(table, []), selected_lease_ids))
-        for table in table_counts
+        for table in economic_tables + routed_tables + ["PHD_PRODUCTNAMES"]
     }
     missing_lease_id_counts = {
         table: sum(1 for row in normalized.get(table, []) if _lease_id(row) <= 0)
-        for table in table_counts
+        for table in economic_tables
+        if table not in ("PHD_INVESTDESCR",)
     }
 
     product_names = _build_product_name_index(normalized.get("PHD_PRODUCTNAMES", []))
-    unmatched_product_code_counts: dict[str, int] = {}
 
-    forecast_rows, unmatched_product_code_counts["PHD_FORCAST"] = _build_forecast_review_rows(
-        normalized.get("PHD_FORCAST", []),
+    # ── Build final ARIES rows per builder guide pass order ──
+
+    # §1 Titles
+    title_rows = _build_final_title_rows(
+        normalized.get("PHD_MAINLSE", []),
+        selected_lease_ids,
+    )
+    # §4 Forecast (includes START lines)
+    forecast_source = normalized.get("PHD_FORCAST", [])
+    forecast_rows = _build_final_forecast_rows(
+        forecast_source,
         selected_lease_ids,
         product_names,
     )
-    econ_rows, _ = _build_source_review_rows(
+    # §5 Prices
+    price_rows = _build_final_price_rows(
+        normalized.get("PHD_LSEPRODVAL", []),
+        selected_lease_ids,
+        product_names,
+    )
+    # §6 Expenses — use primary product phase per lease for keyword selection
+    primary_product_by_lease = _build_primary_product_by_lease(
+        forecast_source, selected_lease_ids,
+    )
+    expense_rows = _build_final_expense_rows(
         normalized.get("PHD_ECON", []),
         selected_lease_ids,
-        section=2,
-        keyword="PY_REVIEW_ECON",
-        source_table="PHD_ECON",
-        candidates=ECON_FIELD_CANDIDATES,
+        primary_product_by_lease,
     )
-    invest_rows, unmatched_invest_description_count = _build_invest_review_rows(
+    # §7 Ownership
+    ownership_rows = _build_final_ownership_rows(
+        normalized.get("PHD_OWNER", []),
+        selected_lease_ids,
+    )
+    # §8 Investments
+    invest_rows = _build_final_invest_rows(
         normalized.get("PHD_INVEST", []),
         normalized.get("PHD_INVESTDESCR", []),
         selected_lease_ids,
     )
-    segment_rows, unmatched_product_code_counts["PHD_LSESEGMENT"] = _build_source_review_rows(
-        normalized.get("PHD_LSESEGMENT", []),
-        selected_lease_ids,
-        section=4,
-        keyword="PY_REVIEW_SEGMENT",
-        source_table="PHD_LSESEGMENT",
-        candidates=SEGMENT_FIELD_CANDIDATES,
-        product_names=product_names,
+
+    # ── Combine, resequence, strip to canonical columns ──
+
+    all_rows = (
+        title_rows + forecast_rows + price_rows
+        + expense_rows + ownership_rows + invest_rows
     )
-    prodval_rows, unmatched_product_code_counts["PHD_LSEPRODVAL"] = _build_source_review_rows(
-        normalized.get("PHD_LSEPRODVAL", []),
-        selected_lease_ids,
-        section=5,
-        keyword="PY_REVIEW_PRODVAL",
-        source_table="PHD_LSEPRODVAL",
-        candidates=PRODVAL_FIELD_CANDIDATES,
-        product_names=product_names,
-    )
-    scen_rows, _ = _build_source_review_rows(
-        normalized.get("MOD_SCEN", []),
-        selected_lease_ids,
-        section=6,
-        keyword="PY_REVIEW_SCEN",
-        source_table="MOD_SCEN",
-        candidates=SCEN_FIELD_CANDIDATES,
-    )
-    template_rows, _ = _build_source_review_rows(
-        normalized.get("MOD_TEMPLATE", []),
-        selected_lease_ids,
-        section=7,
-        keyword="PY_REVIEW_TEMPLATE",
-        source_table="MOD_TEMPLATE",
-        candidates=TEMPLATE_FIELD_CANDIDATES,
-    )
-    cumvol_rows, unmatched_product_code_counts["PHD_CUMVOL"] = _build_source_review_rows(
-        normalized.get("PHD_CUMVOL", []),
-        selected_lease_ids,
-        section=8,
-        keyword="PY_REVIEW_CUMVOL",
-        source_table="PHD_CUMVOL",
-        candidates=CUMVOL_FIELD_CANDIDATES,
-        product_names=product_names,
-    )
-    rows = forecast_rows + econ_rows + invest_rows + segment_rows + prodval_rows + scen_rows + template_rows + cumvol_rows
+    all_rows = _resequence_rows(all_rows)
+    all_rows = [{k: v for k, v in row.items() if k in CANONICAL_COLS} for row in all_rows]
+
+    # ── Status and diagnostics ──
+
+    status = ECONOMIC_STATUS_FINAL_ROWS_PRESENT if all_rows else ECONOMIC_STATUS_EMPTY
 
     warnings: list[str] = []
-    if missing_required:
-        warnings.append(
-            "AC_ECONOMIC deep-fidelity generation is blocked; missing required economic source tables: "
-            + ", ".join(missing_required)
-            + "."
-        )
-    if missing_recommended:
-        warnings.append(
-            "AC_ECONOMIC deep-fidelity generation is incomplete; missing recommended economic source tables: "
-            + ", ".join(missing_recommended)
-            + "."
-        )
+    if not normalized.get("PHD_FORCAST"):
+        warnings.append("PHD_FORCAST is missing; no forecast rows generated.")
     missing_lease_tables = [
         f"{table}={count}"
         for table, count in missing_lease_id_counts.items()
@@ -575,60 +988,41 @@ def build_ac_economic_rows(
     ]
     if missing_lease_tables:
         warnings.append(
-            "Economic source rows without usable LSE_ID were skipped: "
+            "Source rows without usable LSE_ID were skipped: "
             + ", ".join(missing_lease_tables)
             + "."
         )
-    unmatched_product_tables = [
-        f"{table}={count}"
-        for table, count in unmatched_product_code_counts.items()
-        if count
-    ]
-    if unmatched_product_tables:
+    routed_notes: list[str] = []
+    if table_counts.get("MOD_SCEN", 0):
+        routed_notes.append(f"MOD_SCEN ({table_counts['MOD_SCEN']} rows) → AC_SCENARIO")
+    if table_counts.get("MOD_TEMPLATE", 0):
+        routed_notes.append(f"MOD_TEMPLATE ({table_counts['MOD_TEMPLATE']} rows) → AC_SCENARIO")
+    if table_counts.get("PHD_CUMVOL", 0):
+        routed_notes.append(f"PHD_CUMVOL ({table_counts['PHD_CUMVOL']} rows) → AC_PROPERTY PRIOR_*")
+    if table_counts.get("PHD_LSESEGMENT", 0):
+        routed_notes.append(f"PHD_LSESEGMENT ({table_counts['PHD_LSESEGMENT']} rows) → forecast context")
+    if routed_notes:
         warnings.append(
-            "Economic source rows with product codes missing from PHD_PRODUCTNAMES: "
-            + ", ".join(unmatched_product_tables)
+            "Source tables routed to other destinations (not AC_ECONOMIC): "
+            + "; ".join(routed_notes)
             + "."
-        )
-    if rows:
-        warnings.append(
-            "AC_ECONOMIC contains Python review rows only. "
-            "Rows are deterministic coverage artifacts, not verified final Aries economic syntax."
-        )
-    if unmatched_invest_description_count:
-        warnings.append(
-            "PHD_INVEST rows with description identifiers had no matching PHD_INVESTDESCR row: "
-            + str(unmatched_invest_description_count)
-            + "."
-        )
-    else:
-        warnings.append(
-            "AC_ECONOMIC deep-fidelity row generation is not implemented yet in the Python MCP exporter; "
-            "economic source tables were inventoried for review only."
         )
 
     return AcEconomicBuildResult(
-        rows=rows,
+        rows=all_rows,
         warnings=warnings,
         diagnostics={
             "tableCounts": table_counts,
-            "scopedTableCounts": scoped_counts,
             "missingLeaseIdCounts": missing_lease_id_counts,
-            "unmatchedProductCodeCounts": unmatched_product_code_counts,
             "productNameCount": len(product_names),
-            "missingRequiredTables": missing_required,
-            "missingRecommendedTables": missing_recommended,
             "selectedLeaseIds": sorted(selected_lease_ids) if selected_lease_ids else None,
-            "forecastReviewRowCount": len(forecast_rows),
-            "econReviewRowCount": len(econ_rows),
-            "investReviewRowCount": len(invest_rows),
-            "segmentReviewRowCount": len(segment_rows),
-            "prodvalReviewRowCount": len(prodval_rows),
-            "scenarioReviewRowCount": len(scen_rows),
-            "templateReviewRowCount": len(template_rows),
-            "cumvolReviewRowCount": len(cumvol_rows),
-            "reviewRowCount": len(rows),
-            "unmatchedInvestDescriptionCount": unmatched_invest_description_count,
-            "status": "source_review_rows" if rows else "diagnostics_only",
+            "titleRowCount": len(title_rows),
+            "forecastRowCount": len(forecast_rows),
+            "priceRowCount": len(price_rows),
+            "expenseRowCount": len(expense_rows),
+            "ownershipRowCount": len(ownership_rows),
+            "investRowCount": len(invest_rows),
+            "totalRowCount": len(all_rows),
+            "status": status,
         },
     )

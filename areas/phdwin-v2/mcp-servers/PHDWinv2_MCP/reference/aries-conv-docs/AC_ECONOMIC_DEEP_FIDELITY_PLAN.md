@@ -13,11 +13,16 @@ Current status:
 
 The goal is to move from a placeholder `AC_ECONOMIC` surface to a deterministic Python resolver that can be tested and reconciled without bundling Tauris C# source code.
 
+For the externally shareable repo boundary and implementation sequence, also see
+`AC_ECONOMIC_STANDALONE_ROADMAP.md`.
+
 ## Runtime Boundary
 
 The Cowork MCP package is Python-only at runtime.
 
-Do not bundle C# implementation snapshots into this repo. Use external implementation knowledge, Tauris-authored markdown notes, cleared reference artifacts, and known-good input/output examples to define behavior.
+Do not bundle C# implementation snapshots into this repo. Use cleared markdown
+notes, cleared reference artifacts, and known-good input/output examples to
+define behavior.
 
 ## Source Inputs
 

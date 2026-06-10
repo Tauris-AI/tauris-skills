@@ -56,6 +56,11 @@ def test_scoped_forecast_count() -> None:
     assert result.diagnostics["tableCounts"]["PHD_FORCAST"] == 2
     assert result.diagnostics["scopedTableCounts"]["PHD_FORCAST"] == 1
     assert result.diagnostics["selectedLeaseIds"] == [1]
+    assert result.diagnostics["status"] == "review_rows_only"
+    assert result.diagnostics["complete"] is False
+    assert result.diagnostics["reviewQualifier"] == "PY_REVIEW"
+    assert result.diagnostics["reviewRowCount"] == 8
+    assert result.diagnostics["finalAriesRowCount"] == 0
     assert result.diagnostics["forecastReviewRowCount"] == 1
     assert result.diagnostics["econReviewRowCount"] == 1
     assert result.diagnostics["investReviewRowCount"] == 1
@@ -81,6 +86,7 @@ def test_forecast_ordering() -> None:
     assert [row["PROPNUM"] for row in result.rows] == ["PHD000001", "PHD000001", "PHD000002"]
     assert [row["SOURCE_ARCSEQ"] for row in result.rows] == [1, 2, 2]
     assert [row["SEQUENCE"] for row in result.rows] == [1, 2, 3]
+    assert result.diagnostics["status"] == "review_rows_only"
 
 
 def test_section_sequences_are_independent() -> None:
@@ -145,6 +151,15 @@ def test_unmatched_product_code_count() -> None:
     assert any("product codes missing from PHD_PRODUCTNAMES" in warning for warning in result.warnings)
 
 
+def test_empty_economics_status() -> None:
+    result = build_ac_economic_rows({"PHD_FORCAST": []})
+    assert result.rows == []
+    assert result.diagnostics["status"] == "empty"
+    assert result.diagnostics["complete"] is False
+    assert result.diagnostics["reviewRowCount"] == 0
+    assert result.diagnostics["finalAriesRowCount"] == 0
+
+
 def main() -> int:
     test_missing_required_table()
     test_scoped_forecast_count()
@@ -153,6 +168,7 @@ def main() -> int:
     test_unmatched_invest_description_count()
     test_rows_without_lease_id_are_skipped()
     test_unmatched_product_code_count()
+    test_empty_economics_status()
     print("AC_ECONOMIC diagnostics scaffold tests passed.")
     return 0
 

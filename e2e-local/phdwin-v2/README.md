@@ -14,7 +14,7 @@ Everything in this folder is ignored except this README. Good candidates:
 Recommended local layout:
 
 ```text
-e2e-local/
+e2e-local/phdwin-v2/
 |-- Phdwinv2-db/        Native PHDWin samples, extracted files, SQLite review DBs, Aries CSV outputs
 |-- aries-db/           Cleared Aries `.accdb` / `.mdb` samples for table inventory and Access checks
 `-- auto-forecasting/   Monthly production + well metadata ZIPs and generated DCA outputs
@@ -28,7 +28,14 @@ Suggested smoke flow:
 4. Export or reuse a SQLite review database.
 5. Run `conversion_readiness` and `conversion_profile`.
 6. Export Aries-named CSV review tables.
-7. Confirm native PHDWin files were not modified.
+7. Export an optional Aries `.accdb` from a cleared Aries Access template.
+8. Validate the generated `.accdb` through the Aries MCP module:
+
+```powershell
+py -3.12-32 scripts\validate_aries_accdb.py e2e-local\phdwin-v2\Phdwinv2-db\aries-accdb\puckett_aries_export.accdb
+```
+
+9. Confirm native PHDWin files were not modified.
 
 Useful local E2E checks:
 
@@ -37,5 +44,6 @@ Useful local E2E checks:
 - SQLite review database -> conversion readiness/profile
 - SQLite review database -> Aries SQLite review database
 - Aries SQLite review database -> Aries-named CSV folder
+- generated Aries `.accdb` -> Aries MCP table inventory, counts, and ownership sample
 - cleared Aries Access database -> table inventory through Access ODBC
 - monthly production/well metadata ZIPs -> forecasting batch output

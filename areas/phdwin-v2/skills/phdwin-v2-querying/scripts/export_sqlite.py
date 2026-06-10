@@ -20,6 +20,71 @@ def sqlite_table_name(logical_table: str) -> str:
     return logical_table.upper()
 
 
+def cursor_table_names(cursor) -> list[str]:
+    table_names: list[str] = []
+    for row in cursor.tables(tableType="TABLE"):
+        try:
+            table_name = row.table_name
+        except AttributeError:
+            table_name = row[2]
+        if table_name:
+            table_names.append(str(table_name))
+    return table_names
+
+
+def logical_table_base(logical_table: str) -> str:
+    normalized = logical_table.upper()
+    if normalized.startswith("PHD_") or normalized.startswith("MOD_"):
+        return normalized[4:]
+    return normalized
+
+
+def match_native_table(actual_tables: list[str], logical_table: str, resolved_table: str) -> str:
+    base = logical_table_base(logical_table)
+    upper = logical_table.upper()
+    prefer_mod = upper.startswith("MOD_")
+
+    for actual in actual_tables:
+        sep = actual.find("\\&")
+        bare = actual[sep + 2:] if sep != -1 else actual
+        file_part = actual[:sep].upper() if sep != -1 else ""
+        is_mod_file = file_part.endswith(".MOD")
+        if bare.upper() == base.upper() and prefer_mod == is_mod_file:
+            return actual
+
+    for actual in actual_tables:
+        sep = actual.find("\\&")
+        bare = actual[sep + 2:] if sep != -1 else actual
+        if bare.upper() == base.upper():
+            return actual
+
+    actual_by_upper = {table.upper(): table for table in actual_tables}
+    for candidate in [resolved_table, base, logical_table]:
+        match = actual_by_upper.get(candidate.upper())
+        if match:
+            return match
+
+    for table in actual_tables:
+        upper_table = table.upper()
+        if upper_table.endswith(f"\\&{base}") or upper_table.endswith(f"&{base}") or upper_table.endswith(f".{base}"):
+            return table
+    return resolved_table
+
+
+def execute_select_all(cursor, table_name: str):
+    identifiers = [
+        quote_identifier(table_name, dialect="topspeed"),
+        table_name,
+    ]
+    last_error: Exception | None = None
+    for identifier in identifiers:
+        try:
+            return cursor.execute(f"SELECT * FROM {identifier}").fetchall()
+        except Exception as exc:  # pragma: no cover - driver-specific
+            last_error = exc
+    raise last_error or RuntimeError(f"Unable to select from {table_name}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Export selected PhdWIN tables to SQLite.")
     parser.add_argument("dataset_dir", help="Folder containing .phd and optional .mod files")
@@ -63,12 +128,17 @@ def main() -> int:
     try:
         source_cursor = source.cursor()
         target_cursor = target.cursor()
+        actual_tables = cursor_table_names(source_cursor)
 
         for logical_table in args.tables:
-            table_ref = resolve_table_reference(dataset_dir, logical_table)
-            sql = f"SELECT * FROM {quote_identifier(table_ref)}"
-            print(f"Exporting {logical_table} -> {sqlite_table_name(logical_table)}")
-            rows = source_cursor.execute(sql).fetchall()
+            try:
+                table_ref = resolve_table_reference(dataset_dir, logical_table)
+                native_table = match_native_table(actual_tables, logical_table, table_ref)
+                print(f"Exporting {logical_table} -> {sqlite_table_name(logical_table)}")
+                rows = execute_select_all(source_cursor, native_table)
+            except Exception as exc:  # pragma: no cover - environment-specific
+                print(f"  skipped {logical_table}: {exc}")
+                continue
             column_names = [column[0] for column in source_cursor.description]
 
             sqlite_name = sqlite_table_name(logical_table)

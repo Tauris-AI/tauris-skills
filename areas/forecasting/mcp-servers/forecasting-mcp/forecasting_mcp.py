@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import importlib.util
 import json
 import math
 import subprocess
@@ -10,6 +11,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from types import ModuleType
 from statistics import median
 from typing import Any
 
@@ -32,6 +34,9 @@ except ImportError:  # pragma: no cover - depends on client machine setup
 
 mcp = FastMCP("forecasting-mcp")
 SERVER_DIR = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_ARIES_DBSKEY = "168888"
+DEFAULT_ARIES_PROJECT_KEY = "00_FORECAST"
 
 WELL_ALIASES = ("well", "wellname", "well_name", "wellid", "well_id", "entityname", "entity_name", "api", "api10", "api14")
 DATE_ALIASES = ("date", "prod_date", "production_date", "month", "period")
@@ -154,6 +159,113 @@ def _parse_float(value: Any) -> float | None:
     if math.isnan(parsed) or math.isinf(parsed):
         return None
     return parsed
+
+
+def _month_end(value: date) -> date:
+    if value.month == 12:
+        return date(value.year, 12, 31)
+    return date(value.year, value.month + 1, 1) - date.resolution
+
+
+def _load_shared_aries_writer() -> ModuleType:
+    writer_path = REPO_ROOT / "areas" / "aries" / "lib" / "aries_writer.py"
+    spec = importlib.util.spec_from_file_location("tauris_aries_writer", writer_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load shared Aries writer from {writer_path}")
+    cached = sys.modules.get(spec.name)
+    if cached is not None:
+        return cached
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _forecast_propnum(index: int) -> str:
+    return f"FCST{index:06d}"
+
+
+def build_history_only_aries_tables(csv_path: str, dbskey: str = DEFAULT_ARIES_DBSKEY) -> dict[str, list[dict[str, Any]]]:
+    """Build inspectable ARIES table payloads from production CSV history.
+
+    This intentionally creates no final `AC_ECONOMIC` rows. Forecasting outputs
+    must provide approved forecast/economic assumptions before a runnable
+    economic case can be exported.
+    """
+    columns, by_well = _load_csv(csv_path)
+    properties: list[dict[str, Any]] = []
+    products: list[dict[str, Any]] = []
+    projlist: list[dict[str, Any]] = []
+
+    for index, well in enumerate(sorted(by_well), start=1):
+        propnum = _forecast_propnum(index)
+        properties.append({
+            "DBSKEY": dbskey,
+            "PROPNUM": propnum,
+            "LEASE": well,
+            "MAJOR": "Forecasting",
+            "SRC_DB": Path(csv_path).stem,
+        })
+        projlist.append({
+            "INTKEY": f"PROPNUM = '{propnum}'",
+            "PROJKEY": DEFAULT_ARIES_PROJECT_KEY,
+            "PROPKEY": f"PROPNUM = '{propnum}'",
+            "PROPNAME": well,
+            "ENTITYTYPE": "Property",
+            "SELECTED": "Y",
+            "BREAKLEVEL": 0,
+            "PROJSEQ": index,
+            "MAJOR": "",
+            "SCENARIO": "",
+        })
+        for record in by_well[well]:
+            dt = record["date"]
+            row = record["row"]
+            product_row: dict[str, Any] = {
+                "PROPNUM": propnum,
+                "P_DATE": _month_end(dt).strftime("%Y.%m.%d"),
+            }
+            if columns.oil:
+                product_row["OIL"] = _parse_float(row.get(columns.oil)) or 0.0
+            if columns.gas:
+                product_row["GAS"] = _parse_float(row.get(columns.gas)) or 0.0
+            if columns.water:
+                product_row["WATER"] = _parse_float(row.get(columns.water)) or 0.0
+            products.append(product_row)
+
+    scenarios = [
+        {"DBSKEY": dbskey, "SCEN_NAME": "ACTIVE", "DATA_SECT": section, "QUAL0": "TAURIS"}
+        for section in range(1, 10)
+    ]
+    project = [{
+        "DBSKEY": dbskey,
+        "PROJKEY": DEFAULT_ARIES_PROJECT_KEY,
+        "NAME": "Auto Forecast Review",
+        "DESCRIPTN": "History-only forecast review payload",
+        "OWNER": "TAURIS",
+        "PBLIC": "Y",
+        "QUERY": "N",
+        "REBUILD": "N",
+        "PROP_DEL": "N",
+        "SHOWID_CHNG": "N",
+    }]
+    return {
+        "AC_PROPERTY": properties,
+        "AC_PRODUCT": products,
+        "AC_TEST": [],
+        "AC_DAILY": [],
+        "AC_ECONOMIC": [],
+        "ARLOOKUP": [],
+        "AR_SIDEFILE": [],
+        "AC_OWNER": [],
+        "GROUPTEST": [],
+        "AC_SCENARIO": scenarios,
+        "AC_SETUPDATA": [],
+        "PROJECT": project,
+        "PROJLIST": projlist,
+        "SORTFILTERS": [],
+        "SelFilters": [],
+    }
 
 
 def _nominal_to_annual(nominal_decline: float, input_time_unit: str) -> float:
@@ -920,6 +1032,42 @@ def run_monthly_production_dca_batch(
             "methodCsv": str(output_path / "best_method_selection_summary.csv"),
             "analogScreenCsv": str(output_path / "analog_type_curve_screen.csv"),
             "manifest": str(output_path / "input_manifest.json"),
+        },
+    }
+
+
+@mcp.tool()
+def export_history_only_aries_accdb(
+    production_csv: str,
+    template_accdb_path: str,
+    output_accdb_path: str,
+    dbskey: str = DEFAULT_ARIES_DBSKEY,
+) -> dict[str, Any]:
+    """Export production history to an inspectable ARIES Access database.
+
+    This uses the shared Aries Access writer. It does not create runnable
+    `AC_ECONOMIC` forecast lines; economics remain empty by design until a
+    forecast/economic payload is explicitly approved.
+    """
+    tables = build_history_only_aries_tables(production_csv, dbskey=dbskey)
+    writer = _load_shared_aries_writer()
+    summary = writer.write_access_database(
+        tables,
+        Path(template_accdb_path).expanduser().resolve(),
+        Path(output_accdb_path).expanduser().resolve(),
+        dbskey=dbskey,
+        schema_extensions={"AC_PROPERTY": [{"name": "SRC_DB", "accdb_type": "VARCHAR(255)"}]},
+        column_aliases={"AC_PRODUCT": {"DAYSON": ("DAYS_ON",)}},
+    )
+    return {
+        "ok": summary.status == "pass",
+        "accdbPath": str(Path(output_accdb_path).expanduser().resolve()),
+        "tableCounts": {name: len(rows) for name, rows in tables.items()},
+        "accessWriter": summary.to_dict(),
+        "economicsStatus": {
+            "status": "empty",
+            "complete": False,
+            "message": "AC_ECONOMIC is empty by design for history-only forecasting export.",
         },
     }
 

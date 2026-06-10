@@ -26,7 +26,7 @@ from export_sqlite import sqlite_table_name
 from aries_export import (
     read_aries_sqlite_tables,
     resolve_access_template_path,
-    write_access_database,
+    write_access_database_summary,
     write_csv_tables,
 )
 from csv_export import export_sqlite_tables_to_csv
@@ -944,11 +944,15 @@ def export_aries_to_accdb(
     accdb = _path(output_accdb_path)
     template = resolve_access_template_path(_path(template_accdb_path) if template_accdb_path else None)
     tables = read_aries_sqlite_tables(_path(aries_sqlite_path))
-    warnings = write_access_database(tables, template, accdb)
+    summary = write_access_database_summary(tables, template, accdb)
+    warnings = list(summary.warnings)
+    for table in summary.tables.values():
+        warnings.extend(table.warnings)
     return {
         "accdbPath": str(accdb),
         "tableCounts": {name: len(rows) for name, rows in tables.items()},
         "warnings": warnings,
+        "accessWriter": summary.to_dict(),
     }
 
 

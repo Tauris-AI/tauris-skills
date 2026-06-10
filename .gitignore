@@ -22,10 +22,13 @@ e2e-local/**
 !e2e-local/README.md
 !e2e-local/*/
 !e2e-local/*/README.md
+!e2e-local/run_*.py
+!e2e-local/*/run_*.py
 
 # Local helper scripts
 scripts/*
 !scripts/build_reference_sqlite_templates.py
+!scripts/validate_aries_accdb.py
 phdwin_cli_test.log
 
 # Raw database exports and local data

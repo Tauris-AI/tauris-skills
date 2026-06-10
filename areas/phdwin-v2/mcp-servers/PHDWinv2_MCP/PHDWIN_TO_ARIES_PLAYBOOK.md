@@ -17,6 +17,11 @@ Use `reference/` for the deeper Tauris.PhdWin conversion context. Keep the Aries
 - `reference/phdwin-v2/Phdwinout definitions_complete.xls`
 
 This MCP package is Python-only at runtime. Do not bundle Tauris C# source code into this repo.
+Use external Tauris.PhdWin behavior and cleared documents as a roadmap only; do
+not copy implementation files into this standalone package.
+Access export writes go through the shared Aries writer at
+`areas/aries/mcp-servers/aries-mcp/aries_access_writer.py`; the PHDWin package
+builds ARIES table payloads and does not own low-level Access writing.
 
 ## ⚠️ Clarion / TopSpeed ODBC Driver Constraint
 

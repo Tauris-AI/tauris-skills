@@ -28,7 +28,16 @@ def list_odbc_drivers() -> list[str]:
 
 
 def find_driver_name(drivers: Iterable[str]) -> str | None:
-    for driver in drivers:
+    driver_list = list(drivers)
+    for driver in driver_list:
+        lower = driver.lower()
+        if "softvelocity" in lower and "topspeed" in lower and "read-only" in lower:
+            return driver
+    for driver in driver_list:
+        lower = driver.lower()
+        if "softvelocity" in lower and "topspeed" in lower:
+            return driver
+    for driver in driver_list:
         lower = driver.lower()
         if "topspeed" in lower or "softvelocity" in lower or "clarion" in lower:
             return driver
@@ -53,7 +62,7 @@ def detect_source_type(path: Path) -> str:
 def find_dataset_files(dataset_dir: Path) -> tuple[Path | None, Path | None]:
     phd = None
     mod = None
-    for child in sorted(dataset_dir.iterdir()):
+    for child in sorted(dataset_dir.rglob("*")):
         if child.is_file():
             suffix = child.suffix.lower()
             if suffix == ".phd" and phd is None:
@@ -65,9 +74,10 @@ def find_dataset_files(dataset_dir: Path) -> tuple[Path | None, Path | None]:
 
 def build_topspeed_connection_string(dataset_dir: Path, driver_name: str) -> str:
     phd, mod = find_dataset_files(dataset_dir)
+    dbq_dir = phd.parent if phd is not None else dataset_dir
     parts = [
         f"Driver={{{driver_name}}}",
-        f"DBQ={dataset_dir}",
+        f"DBQ={dbq_dir}\\",
         "Extension=*",
         "UlongAsDate=N",
         "NoDot=N",
@@ -96,7 +106,7 @@ def validate_dataset_dir(dataset_dir: Path) -> tuple[bool, list[str]]:
     return len(problems) == 0, problems
 
 
-def quote_identifier(name: str) -> str:
+def quote_identifier(name: str, dialect: str = "ansi") -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
@@ -107,11 +117,11 @@ def resolve_table_reference(dataset_dir: Path, logical_table: str) -> str:
     if normalized.startswith("PHD_"):
         if phd is None:
             raise ValueError("Cannot resolve PHD table without a .phd file")
-        return f"{phd.name}\\&{normalized[4:]}"
+        return normalized[4:]
     if normalized.startswith("MOD_"):
         if mod is None:
             raise ValueError("Cannot resolve MOD table without a .mod file")
-        return f"{mod.name}\\&{normalized[4:]}"
+        return normalized[4:]
     if normalized.startswith("{{PHD}}") or normalized.startswith("{{MOD}}"):
         raise ValueError("Use logical table names like PHD_MAINLSE or MOD_SCEN, not placeholders")
     if mod is not None and normalized in {
@@ -125,10 +135,10 @@ def resolve_table_reference(dataset_dir: Path, logical_table: str) -> str:
         "TIMESTAMP",
         "VERSION",
     }:
-        return f"{mod.name}\\&{normalized}"
+        return normalized
     if phd is None:
         raise ValueError("Cannot resolve table without a .phd file")
-    return f"{phd.name}\\&{normalized}"
+    return normalized
 
 
 def print_environment_summary() -> None:

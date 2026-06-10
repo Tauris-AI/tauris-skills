@@ -20,6 +20,11 @@ This area is documentation-first. Use it to understand ARIES table expectations,
 
 The Python `aries-mcp` server is optional and only applies when a user supplies a local ARIES `.accdb` or `.mdb` for inspection or maintenance.
 
+The shared Access writer lives at `mcp-servers/aries-mcp/aries_access_writer.py`.
+Source-specific workflows, such as PHDWin conversion or auto-forecasting, should
+build normalized ARIES table payloads and call this writer instead of writing
+Access directly.
+
 Production PHDWin-to-Aries export remains in the PHDWin v2 workflow; this area provides agent-facing ARIES guidance, review assets, and optional Access database tools.
 
 The local SQLite Access-template copy is included only as schema/reference support. It is not required for drafting new documented economic lines.

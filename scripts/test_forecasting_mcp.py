@@ -11,7 +11,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "areas/forecasting/mcp-servers/forecasting-mcp"))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from forecasting_mcp import convert_decline_convention, profile_and_recommend, validate_industry_alignment  # noqa: E402
+from forecasting_mcp import (  # noqa: E402
+    build_history_only_aries_tables,
+    convert_decline_convention,
+    profile_and_recommend,
+    validate_industry_alignment,
+)
 from generate_forecasting_sample_plots import load_chart_config, render_svg  # noqa: E402
 
 
@@ -135,11 +140,32 @@ def test_industry_alignment_validation_avoids_compliance_claim() -> None:
     assert "not a formal compliance claim" in result["statement"]
 
 
+def test_history_only_aries_payload_keeps_economics_empty() -> None:
+    with tempfile.TemporaryDirectory(prefix="forecasting-aries-payload-") as tmp:
+        path = Path(tmp) / "monthly.csv"
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["WellName", "Date", "Oil", "Gas", "Water"])
+            writer.writeheader()
+            writer.writerow({"WellName": "Well A", "Date": "2026-01", "Oil": "100", "Gas": "200", "Water": "10"})
+            writer.writerow({"WellName": "Well A", "Date": "2026-02", "Oil": "90", "Gas": "190", "Water": "9"})
+            writer.writerow({"WellName": "Well B", "Date": "2026-01", "Oil": "50", "Gas": "300", "Water": "5"})
+
+        tables = build_history_only_aries_tables(str(path))
+        assert len(tables["AC_PROPERTY"]) == 2
+        assert len(tables["PROJLIST"]) == 2
+        assert len(tables["AC_PRODUCT"]) == 3
+        assert tables["AC_ECONOMIC"] == []
+        assert tables["AC_PRODUCT"][0]["P_DATE"] == "2026.01.31"
+        assert tables["AC_PRODUCT"][1]["P_DATE"] == "2026.02.28"
+        assert {row["PROPNUM"] for row in tables["AC_PRODUCT"]} == {"FCST000001", "FCST000002"}
+
+
 def main() -> int:
     test_profile_and_recommend_detects_pressure_and_multiple_origins()
     test_decline_convention_conversion_uses_effective_annual_values()
     test_sample_plot_renderer_returns_svg()
     test_industry_alignment_validation_avoids_compliance_claim()
+    test_history_only_aries_payload_keeps_economics_empty()
     print("Forecasting MCP tests passed.")
     return 0
 

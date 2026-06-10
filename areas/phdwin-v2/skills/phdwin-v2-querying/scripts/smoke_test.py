@@ -15,6 +15,71 @@ from common import (
 )
 
 
+def cursor_table_names(cursor) -> list[str]:
+    table_names: list[str] = []
+    for row in cursor.tables(tableType="TABLE"):
+        try:
+            table_name = row.table_name
+        except AttributeError:
+            table_name = row[2]
+        if table_name:
+            table_names.append(str(table_name))
+    return table_names
+
+
+def logical_table_base(logical_table: str) -> str:
+    normalized = logical_table.upper()
+    if normalized.startswith("PHD_") or normalized.startswith("MOD_"):
+        return normalized[4:]
+    return normalized
+
+
+def match_native_table(actual_tables: list[str], logical_table: str, resolved_table: str) -> str:
+    base = logical_table_base(logical_table)
+    upper = logical_table.upper()
+    prefer_mod = upper.startswith("MOD_")
+
+    for actual in actual_tables:
+        sep = actual.find("\\&")
+        bare = actual[sep + 2:] if sep != -1 else actual
+        file_part = actual[:sep].upper() if sep != -1 else ""
+        is_mod_file = file_part.endswith(".MOD")
+        if bare.upper() == base.upper() and prefer_mod == is_mod_file:
+            return actual
+
+    for actual in actual_tables:
+        sep = actual.find("\\&")
+        bare = actual[sep + 2:] if sep != -1 else actual
+        if bare.upper() == base.upper():
+            return actual
+
+    actual_by_upper = {table.upper(): table for table in actual_tables}
+    for candidate in [resolved_table, base, logical_table]:
+        match = actual_by_upper.get(candidate.upper())
+        if match:
+            return match
+
+    for table in actual_tables:
+        upper_table = table.upper()
+        if upper_table.endswith(f"\\&{base}") or upper_table.endswith(f"&{base}") or upper_table.endswith(f".{base}"):
+            return table
+    return resolved_table
+
+
+def fetch_sample(cursor, table_name: str, limit: int):
+    identifiers = [
+        quote_identifier(table_name, dialect="topspeed"),
+        table_name,
+    ]
+    last_error: Exception | None = None
+    for identifier in identifiers:
+        try:
+            return cursor.execute(f"SELECT * FROM {identifier}").fetchmany(limit)
+        except Exception as exc:  # pragma: no cover - driver-specific
+            last_error = exc
+    raise last_error or RuntimeError(f"Unable to select from {table_name}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run read-only smoke tests against a PhdWIN dataset folder.")
     parser.add_argument("dataset_dir", help="Folder containing .phd and optional .mod files")
@@ -53,12 +118,13 @@ def main() -> int:
 
     try:
         cursor = conn.cursor()
+        actual_tables = cursor_table_names(cursor)
         for logical_table in args.tables:
             table_ref = resolve_table_reference(dataset_dir, logical_table)
-            sql = f"SELECT * FROM {quote_identifier(table_ref)}"
-            print(f"Testing {logical_table} -> {table_ref}")
+            native_table = match_native_table(actual_tables, logical_table, table_ref)
+            print(f"Testing {logical_table} -> {native_table}")
             try:
-                rows = cursor.execute(sql).fetchmany(args.limit)
+                rows = fetch_sample(cursor, native_table, args.limit)
                 print(f"  OK, fetched {len(rows)} row(s)")
             except Exception as exc:  # pragma: no cover - environment-specific
                 print(f"  FAILED: {exc}")

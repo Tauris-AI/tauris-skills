@@ -27,6 +27,8 @@ Use this skill when an agent must understand or review how PHDWin v2 data become
 Load these only when the task requires the detail:
 
 - `references/module-map.md`: ARIES area/module routing.
+- `references/aries-access-payload-contract.md`: shared payload contract for builders that write ARIES Access databases.
+- `references/aries-access-write-checklist.md`: shared Access writer safety and integrity rules.
 - `../aries-ac-economic/SKILL.md`: detailed `AC_ECONOMIC` parsing, validation, taxonomy, Tauris conversion best practices, and line editing.
 - `../../../phdwin-v2/mcp-servers/PHDWinv2_MCP/PHDWIN_TO_ARIES_TABLE_MAP.md`: PHDWin source table map.
 - `../../../phdwin-v2/mcp-servers/PHDWinv2_MCP/PHDWIN_TO_ARIES_PLAYBOOK.md`: Cowork workflow for PHDWin-to-Aries review.

@@ -1,61 +1,70 @@
 #!/usr/bin/env python3
+"""PHDWin-to-ARIES table builder.
+
+Scope: reads a PHDWin review SQLite (PHD_MAINLSE, PHD_OWNER, PHD_MONHIST, etc.)
+and produces resolved ARIES-named tables (AC_PROPERTY, AC_PRODUCT, AC_ECONOMIC,
+AC_SCENARIO, AC_SETUP, AC_OWNER, PROJECT, PROJLIST, ...).  Output is handed to
+the shared aries_writer for CSV, SQLite, and Access serialisation.
+
+No ARIES file-format logic lives here; this module only maps PHDWin semantics
+to ARIES column names and value conventions.
+"""
 from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import json
 import os
 import re
-import shutil
 import sqlite3
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Iterable
 
 from aries_economic import build_ac_economic_rows
+
+
+# ---------------------------------------------------------------------------
+# Load the shared ARIES writer from areas/aries/lib/aries_writer.py.
+# ---------------------------------------------------------------------------
+
+def _load_shared_aries_writer() -> ModuleType:
+    writer_path = Path(__file__).resolve().parents[5] / "areas" / "aries" / "lib" / "aries_writer.py"
+    spec = importlib.util.spec_from_file_location("tauris_aries_writer", writer_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load shared Aries writer from {writer_path}")
+    cached = sys.modules.get(spec.name)
+    if cached is not None:
+        return cached
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_aries_writer = _load_shared_aries_writer()
+
+# Re-export shared writer API used by callers of this module.
+EXPORT_TABLE_ORDER = _aries_writer.EXPORT_TABLE_ORDER
+PER_LEASE_TABLES = _aries_writer.PER_LEASE_TABLES
+GLOBAL_TABLES = _aries_writer.GLOBAL_TABLES
+write_csv_tables = _aries_writer.write_csv_tables
+write_aries_sqlite_tables = _aries_writer.write_aries_sqlite_tables
+read_aries_sqlite_tables = _aries_writer.read_aries_sqlite_tables
+resolve_access_template_path = _aries_writer.resolve_access_template_path
+prepare_access_tables = _aries_writer.prepare_access_tables
+is_review_economic_row = _aries_writer.is_review_economic_row
+write_access_database_with_defaults = _aries_writer.write_access_database_with_defaults
 
 DEFAULT_DBSKEY = "168888"
 DEFAULT_PROJECT_KEY = "00_RSV_CAT"
 DEFAULT_SCENARIO_NAME = "ACTIVE"
 DEFAULT_DATA_QUALIFIER = "TAURIS"
-ACCESS_SCHEMA_EXTENSIONS = {
-    "AC_PROPERTY": [
-        {"name": "SRC_DB", "accdb_type": "VARCHAR(255)"},
-    ],
-}
-ACCESS_COLUMN_ALIASES = {
-    "AC_PRODUCT": {
-        "DAYSON": ("DAYS_ON",),
-    },
-    "AC_TEST": {
-        "T_DATE": ("DATE", "TEST_DATE"),
-        "WTR_RATE": ("WATER_RATE",),
-        "M_FWHP": ("TUBINGPRESSURE",),
-        "C_SIWHP": ("CASINGPRESSURE", "SITP"),
-    },
-    "AC_DAILY": {
-        "D_DATE": ("DATE",),
-        "WATER": ("WATER_RATE",),
-    },
-}
-EXPORT_TABLE_ORDER = [
-    "AC_PROPERTY",
-    "AC_PRODUCT",
-    "AC_TEST",
-    "AC_DAILY",
-    "AC_ECONOMIC",
-    "ARLOOKUP",
-    "AR_SIDEFILE",
-    "AC_OWNER",
-    "GROUPTEST",
-    "AC_SCENARIO",
-    "AC_SETUPDATA",
-    "PROJECT",
-    "PROJLIST",
-    "SORTFILTERS",
-    "SelFilters",
-]
+DEFAULT_REVIEW_QUALIFIER = "PY_REVIEW"
 
 
 @dataclass
@@ -164,6 +173,25 @@ def parse_date(value: Any) -> date | None:
 def aries_date(value: Any) -> str:
     parsed = parse_date(value)
     return parsed.strftime("%Y.%m.%d") if parsed else ""
+
+
+def monthly_value(row: dict[str, Any], product_index: int, month: int) -> float:
+    zero_based = month - 1
+    return to_float(row_get(
+        row,
+        f"PROD{product_index}${month}",
+        f"PROD{product_index}_{zero_based}",
+        f"PROD{product_index}{zero_based}",
+        f"PROD{product_index}_{month}",
+        f"PROD{product_index}{month}",
+        default=0,
+    ))
+
+
+def aries_owner_start_date(value: Any) -> str:
+    if to_int(value, default=0) <= 0:
+        return "2000.01.01"
+    return aries_date(value) or "2000.01.01"
 
 
 def month_end(year: int, month: int) -> str:
@@ -297,6 +325,12 @@ def project_key(group: dict[str, Any]) -> str:
     return f"{sanitize_key(group_qualifier(group), 9)}{to_int(row_get(group, 'GRP_ID'))}"
 
 
+def owner_name_for_group(group: dict[str, Any] | None, group_id: int) -> str:
+    if not group:
+        return f"GRP{group_id}"[:12]
+    return sanitize_key(group_description(group), 12)
+
+
 def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) -> tuple[dict[str, list[dict[str, Any]]], list[str], dict[str, Any]]:
     warnings: list[str] = []
     with open_sqlite(source_sqlite) as conn:
@@ -311,7 +345,9 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         monhist = read_table_filtered(conn, "PHD_MONHIST", lease_ids)
         daily = read_table_filtered(conn, "PHD_DAILY", lease_ids)
         economic_source_tables = {
+            "PHD_MAINLSE": leases,
             "PHD_PRODUCTNAMES": product_names,
+            "PHD_OWNER": owners,
             "PHD_FORCAST": read_table_filtered(conn, "PHD_FORCAST", lease_ids),
             "PHD_LSESEGMENT": read_table_filtered(conn, "PHD_LSESEGMENT", lease_ids),
             "PHD_LSEPRODVAL": read_table_filtered(conn, "PHD_LSEPRODVAL", lease_ids),
@@ -337,6 +373,7 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
     product_by_code = indexed(product_names, "PRODUCTCODE")
     class_by_id = indexed(classes, "CLA_ID")
     category_by_id = indexed(categories, "CAT_ID")
+    group_by_id = indexed(groups, "GRP_ID")
     leases_by_id = {to_int(row_get(lease, "LSE_ID")): lease for lease in leases}
     memberships = build_project_membership(leases, groups, list_rows, owners, selected_lease_ids)
     source_db = friendly_source_name(source_sqlite)
@@ -358,11 +395,13 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
             and to_int(row_get(owner, "GRP_ID")) == to_int(row_get(group, "GRP_ID"))
         })
 
+        prod_start = aries_date(row_get(lease, "SOP_DTTM", "SOP_DATE", "SOP", default=""))
         ac_property.append({
             "DBSKEY": DEFAULT_DBSKEY,
             "PROPNUM": propnum_for_lease(lease_id),
             "SRC_DB": source_db,
             "SEQ": lease_id,
+            "SEQNUM": lease_id,
             "MAJOR": clean_text(row_get(product or {}, "DESCR", "DESCRIPTION", default="")),
             "PRIOR_OIL": 0,
             "PRIOR_GAS": 0,
@@ -375,6 +414,7 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
             "RSV_CATEGORY_ID": reserve_category_id,
             "RSV_CATEGORY_NAME": reserve_category,
             "RSV_CAT": reserve_category,
+            "RESCAT": reserve_category,
             "RSC_SORT": f"{reserve_class_id - 1}{reserve_category_id}",
             "FIELD": clean_text(row_get(lease, "FLD", "FIELD", default="")),
             "RESERVOIR": clean_text(row_get(lease, "RESERVOIR", default="")),
@@ -391,8 +431,10 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
             "WELLTYPE": clean_text(row_get(lease, "WELLTYPE", default="")),
             "GASGATH": clean_text(row_get(lease, "GASGATH", default="")),
             "OILGATH": clean_text(row_get(lease, "OILGATH", default="")),
-            "PROD_START": aries_date(row_get(lease, "SOP_DTTM", "SOP_DATE", "SOP", default="")),
+            "PROD_START": prod_start,
+            "FIRST_PROD": prod_start,
             "PROD_END": aries_date(row_get(lease, "EOP_DTTM", "EOP_DATE", "EOP", default="")),
+            "DATE_COMP": aries_date(row_get(lease, "COMP_DTTM", "COMP_DATE", "COMPLETION_DATE", default="")),
             "DEPTH": to_float(row_get(lease, "TD", "DEPTH", default=0)),
             "LATITUDE": to_float(row_get(lease, "LAT", "LATITUDE", default=0)),
             "LONGITUDE": to_float(row_get(lease, "LONG", "LONGITUDE", default=0)),
@@ -403,6 +445,25 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
             "EXCLSUM": "true" if to_int(row_get(lease, "EXCLSUM", default=0)) == 1 else "false",
             "EXCLCASH": "true" if to_int(row_get(lease, "EXCLCASH", default=0)) == 1 else "false",
             "EXCLVOL": "true" if to_int(row_get(lease, "EXCLVOL", default=0)) == 1 else "false",
+            # Standard ARIES identification columns
+            "API": clean_text(row_get(lease, "API", "API_NUM", default="")),
+            "UWI": clean_text(row_get(lease, "UWI", default="")),
+            "WELL_ID": clean_text(row_get(lease, "WELL_ID", default="")),
+            "STATUS": clean_text(row_get(lease, "STATUS", "WELL_STATUS", default="")),
+            "CODE": "",
+            # Standard ARIES geographic columns
+            "AREA": clean_text(row_get(lease, "AREA", "BASIN", default="")),
+            "DIVISION": clean_text(row_get(lease, "DIVISION", default="")),
+            "REGION": clean_text(row_get(lease, "REGION", default="")),
+            # Standard ARIES engineering columns
+            "LOE": to_float(row_get(lease, "LOE", default=0)),
+            "BTU": to_float(row_get(lease, "BTU", default=0)),
+            "LIQ_GRAV": to_float(row_get(lease, "LIQ_GRAV", "API_GRAV", default=0)),
+            "GAS_GRAV": to_float(row_get(lease, "GAS_GRAV", default=0)),
+            "TEMP_BH": to_float(row_get(lease, "TEMP_BH", "BHT", default=0)),
+            "PB_DEPTH": to_float(row_get(lease, "PB_DEPTH", default=0)),
+            "UPR_PERF": to_float(row_get(lease, "UPR_PERF", default=0)),
+            "LWR_PERF": to_float(row_get(lease, "LWR_PERF", default=0)),
         })
 
     ac_product: list[dict[str, Any]] = []
@@ -414,15 +475,14 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         if year <= 0:
             continue
         for month in range(1, 13):
-            idx = month - 1
             ac_product.append({
                 "PROPNUM": propnum_for_lease(lease_id),
                 "P_DATE": month_end(year, month),
-                "OIL": to_float(row_get(row, f"PROD2_{idx}", f"PROD2{idx}", f"PROD2_{month}", f"PROD2{month}", default=0)),
-                "GAS": to_float(row_get(row, f"PROD1_{idx}", f"PROD1{idx}", f"PROD1_{month}", f"PROD1{month}", default=0)),
-                "WATER": to_float(row_get(row, f"PROD3_{idx}", f"PROD3{idx}", f"PROD3_{month}", f"PROD3{month}", default=0)),
-                "WELLCOUNT": to_float(row_get(row, f"PROD4_{idx}", f"PROD4{idx}", f"PROD4_{month}", f"PROD4{month}", default=0)),
-                "DAYS_ON": to_float(row_get(row, f"PROD5_{idx}", f"PROD5{idx}", f"PROD5_{month}", f"PROD5{month}", default=0)),
+                "OIL": monthly_value(row, 2, month),
+                "GAS": monthly_value(row, 1, month),
+                "WATER": monthly_value(row, 3, month),
+                "WELLCOUNT": monthly_value(row, 4, month),
+                "DAYS_ON": monthly_value(row, 5, month),
             })
 
     ac_test: list[dict[str, Any]] = []
@@ -445,6 +505,45 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
             "Z_FACTOR": to_float(row_get(row, "ZFACTOR", "Z_FACTOR", default=0)),
             "NOTES": clean_text(row_get(row, "NOTES", default="")),
         })
+
+    ac_owner: list[dict[str, Any]] = []
+    seen_owner_keys: set[tuple[str, str, str, str, str]] = set()
+
+    def add_owner_row(owner_row: dict[str, Any], phase_name: str, interest: float) -> None:
+        if interest == 0:
+            return
+        lease_id = to_int(row_get(owner_row, "LSE_ID"))
+        if lease_id not in leases_by_id:
+            return
+        group_id = to_int(row_get(owner_row, "GRP_ID"))
+        group = group_by_id.get(group_id)
+        scenario = DEFAULT_SCENARIO_NAME if group is None or is_all_cases_group(group) else group_qualifier(group)
+        start_date = aries_owner_start_date(row_get(owner_row, "RESOLVEDDATE", default=0))
+        owner_name = owner_name_for_group(group, group_id)
+        key = (propnum_for_lease(lease_id), scenario, phase_name, start_date, owner_name)
+        if key in seen_owner_keys:
+            return
+        seen_owner_keys.add(key)
+        ac_owner.append({
+            "PROPNUM": key[0],
+            "SCENARIO": scenario,
+            "PHASENAME": phase_name,
+            "STARTDATE": start_date,
+            "HISTORY": "E",
+            "OWNERNAME": owner_name,
+            "UNITS": "N",
+            "INTEREST": interest,
+        })
+
+    for row in sorted(owners, key=lambda r: (to_int(row_get(r, "LSE_ID")), to_int(row_get(r, "GRP_ID")), to_int(row_get(r, "SEQ"), default=1))):
+        lease_id = to_int(row_get(row, "LSE_ID"))
+        if selected_lease_ids is not None and lease_id not in selected_lease_ids:
+            continue
+        working_interest = to_float(row_get(row, "WRKINT", default=0))
+        net_revenue_interest = to_float(row_get(row, "LSENRI", "REVINT", default=0))
+        add_owner_row(row, "LSE/WI", working_interest)
+        add_owner_row(row, "NET/OIL", net_revenue_interest)
+        add_owner_row(row, "NET/GAS", net_revenue_interest)
 
     project_rows = [{
         "DBSKEY": DEFAULT_DBSKEY,
@@ -583,13 +682,18 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         key = (scen_name, data_sect)
         if key in seen_scenarios:
             return
-        row = {"DBSKEY": DEFAULT_DBSKEY, "SCEN_NAME": scen_name, "DATA_SECT": data_sect}
+        row = {
+            "DBSKEY": DEFAULT_DBSKEY, "SCEN_NAME": scen_name, "DATA_SECT": data_sect,
+            "QUAL0": "", "QUAL1": "", "QUAL2": "", "QUAL3": "", "QUAL4": "",
+            "QUAL5": "", "QUAL6": "", "QUAL7": "", "QUAL8": "", "QUAL9": "",
+            "OWNER": "",
+        }
         row.update(values)
         scenarios.append(row)
         seen_scenarios.add(key)
 
     for section in range(1, 10):
-        add_scenario(DEFAULT_SCENARIO_NAME, section, QUAL0=DEFAULT_DATA_QUALIFIER)
+        add_scenario(DEFAULT_SCENARIO_NAME, section, QUAL0=DEFAULT_DATA_QUALIFIER, QUAL1=DEFAULT_REVIEW_QUALIFIER)
 
     for group in groups:
         qualifier = group_qualifier(group)
@@ -614,6 +718,14 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         {"SECNAME": "TAURIS", "SECTYPE": "FRAME", "LINENUMBER": 2000, "LINE": f"1 -1 3 0 {adjusted_max}"},
     ]
 
+    ac_setup = [{
+        "SETUPNAME": "TAURIS", "DESCRIPTN": "Tauris conversion setup",
+        "OWNER": "", "PBLIC": "Y",
+        "FRAME": "TAURIS", "PW": "", "ESC": "", "CAPITAL": "",
+        "CORPTAX": "", "SSROY": "", "SPECIAL": "", "VARATES": "",
+        "DEFLINES": "", "COMLINES": "",
+    }]
+
     if not daily:
         warnings.append("PHD_DAILY was not present; AC_TEST and AC_DAILY are empty.")
     economic_result = build_ac_economic_rows(economic_source_tables, selected_lease_ids)
@@ -627,9 +739,10 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
         "AC_ECONOMIC": economic_result.rows,
         "ARLOOKUP": [],
         "AR_SIDEFILE": [],
-        "AC_OWNER": [],
+        "AC_OWNER": ac_owner,
         "GROUPTEST": [],
         "AC_SCENARIO": scenarios,
+        "AC_SETUP": ac_setup,
         "AC_SETUPDATA": setupdata,
         "PROJECT": project_rows,
         "PROJLIST": projlist,
@@ -639,94 +752,12 @@ def build_aries_tables(source_sqlite: Path, lease_ids: list[int] | None = None) 
     return tables, warnings, {"acEconomic": economic_result.diagnostics}
 
 
-PER_LEASE_TABLES = {
-    "AC_PROPERTY",
-    "AC_PRODUCT",
-    "AC_TEST",
-    "AC_DAILY",
-    "AC_ECONOMIC",
-    "AC_OWNER",
-    "GROUPTEST",
-    "PROJLIST",
-}
-GLOBAL_TABLES = {
-    "PROJECT",
-    "AC_SCENARIO",
-    "AC_SETUPDATA",
-    "SORTFILTERS",
-    "SelFilters",
-    "ARLOOKUP",
-    "AR_SIDEFILE",
-}
-
-
-def write_csv_tables(tables: dict[str, list[dict[str, Any]]], csv_dir: Path, append: bool = False) -> None:
-    csv_dir.mkdir(parents=True, exist_ok=True)
-    for table_name in EXPORT_TABLE_ORDER:
-        rows = tables.get(table_name, [])
-        is_per_lease = table_name in PER_LEASE_TABLES
-        path = csv_dir / f"{table_name}.csv"
-        if append and is_per_lease and path.exists():
-            with path.open("r", newline="", encoding="utf-8") as handle:
-                columns = next(csv.reader(handle), [])
-            with path.open("a", newline="", encoding="utf-8") as handle:
-                writer = csv.DictWriter(handle, fieldnames=columns)
-                for row in rows:
-                    writer.writerow({column: row.get(column, "") for column in columns})
-            continue
-        if not rows and append and not is_per_lease:
-            continue
-        columns = sorted({column for row in rows for column in row.keys()}, key=str.upper)
-        with path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=columns)
-            writer.writeheader()
-            for row in rows:
-                writer.writerow({column: row.get(column, "") for column in columns})
-
-
 def get_all_lease_ids(source_sqlite: Path) -> list[int]:
     with open_sqlite(source_sqlite) as conn:
         rows = conn.execute(
             'SELECT LSE_ID FROM "PHD_MAINLSE" ORDER BY CAST(LSE_ID AS INTEGER)'
         ).fetchall()
     return [int(row[0]) for row in rows if row[0] is not None]
-
-
-def write_aries_sqlite_tables(
-    tables: dict[str, list[dict[str, Any]]],
-    aries_sqlite: Path,
-    append: bool = False,
-) -> None:
-    aries_sqlite.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(aries_sqlite) as conn:
-        for table_name in EXPORT_TABLE_ORDER:
-            rows = tables.get(table_name, [])
-            is_per_lease = table_name in PER_LEASE_TABLES
-            if not rows:
-                if not append or not is_per_lease:
-                    conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
-                continue
-            columns = sorted({column for row in rows for column in row.keys()}, key=str.upper)
-            if append and is_per_lease:
-                col_defs = ", ".join(f'"{column}" TEXT' for column in columns)
-                conn.execute(f'CREATE TABLE IF NOT EXISTS "{table_name}" ({col_defs})')
-                existing = {
-                    row[1]
-                    for row in conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()
-                }
-                for column in columns:
-                    if column not in existing:
-                        conn.execute(f'ALTER TABLE "{table_name}" ADD COLUMN "{column}" TEXT')
-            else:
-                conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
-                col_defs = ", ".join(f'"{column}" TEXT' for column in columns)
-                conn.execute(f'CREATE TABLE "{table_name}" ({col_defs})')
-            placeholders = ", ".join("?" for _ in columns)
-            conn.executemany(
-                f'INSERT INTO "{table_name}" VALUES ({placeholders})',
-                [[str(row.get(column, "") or "") for column in columns] for row in rows],
-            )
-        conn.commit()
 
 
 def export_aries_full_to_sqlite(source_sqlite: Path, aries_sqlite: Path, batch_size: int = 50) -> dict[str, Any]:
@@ -751,221 +782,21 @@ def export_aries_full_to_sqlite(source_sqlite: Path, aries_sqlite: Path, batch_s
     }
 
 
-def read_aries_sqlite_tables(aries_sqlite: Path) -> dict[str, list[dict[str, Any]]]:
-    tables: dict[str, list[dict[str, Any]]] = {}
-    with sqlite3.connect(aries_sqlite) as conn:
-        conn.row_factory = sqlite3.Row
-        for table_name in EXPORT_TABLE_ORDER:
-            try:
-                rows = conn.execute(f'SELECT * FROM "{table_name}"').fetchall()
-                tables[table_name] = [dict(row) for row in rows]
-            except Exception:
-                tables[table_name] = []
-    return tables
-
-
-def _clean_name(value: Any) -> str:
-    # Access catalog names can come back utf-16-le; under latin-1 decode that
-    # interleaves NUL bytes. Strip NULs so names match template columns.
-    return str(value).replace("\x00", "")
-
-
-def access_columns(cursor: Any, table_name: str) -> list[str]:
-    cursor.execute(f"SELECT * FROM {q(table_name)} WHERE 1=0")
-    return [_clean_name(column[0]) for column in cursor.description]
-
-
-def access_column_schema(cursor: Any, table_name: str) -> dict[str, dict[str, Any]]:
-    schema: dict[str, dict[str, Any]] = {}
-    for row in cursor.columns(table=table_name):
-        column_name = _clean_name(row.column_name)
-        schema[column_name.upper()] = {
-            "name": column_name,
-            "data_type": int(row.data_type),
-            "type_name": _clean_name(row.type_name).upper(),
-            "column_size": int(row.column_size or 0),
-        }
-    return schema
-
-
-def access_table_names(cursor: Any) -> set[str]:
-    names = set()
-    for row in cursor.tables(tableType="TABLE"):
-        try:
-            names.add(_clean_name(row.table_name).upper())
-        except AttributeError:
-            names.add(_clean_name(row[2]).upper())
-    return names
-
-
-def append_showids_column(cursor: Any, dbskey: str, column_name: str, warnings: list[str]) -> None:
-    tables = access_table_names(cursor)
-    if "DBSLIST" not in tables:
-        return
-    columns = {column.upper() for column in access_columns(cursor, "DBSLIST")}
-    if "DBSKEY" not in columns or "SHOWIDS" not in columns:
-        warnings.append("DBSLIST exists but is missing DBSKEY or SHOWIDS; SRC_DB display governance skipped.")
-        return
-    row = cursor.execute(f"SELECT {q('SHOWIDS')} FROM {q('DBSLIST')} WHERE {q('DBSKEY')} = ?", dbskey).fetchone()
-    if row is None:
-        warnings.append(f"DBSLIST row for DBSKEY {dbskey} was not found; SRC_DB was not appended to SHOWIDS.")
-        return
-    existing = "" if row[0] is None else str(row[0])
-    tokens = [token.strip() for token in existing.split(",") if token.strip()]
-    if any(token.upper() == column_name.upper() for token in tokens):
-        return
-    updated = ", ".join([*tokens, column_name]) if tokens else column_name
-    cursor.execute(
-        f"UPDATE {q('DBSLIST')} SET {q('SHOWIDS')} = ? WHERE {q('DBSKEY')} = ?",
-        updated,
-        dbskey,
+def write_access_database_summary(tables: dict[str, list[dict[str, Any]]], template_path: Path, output_path: Path) -> Any:
+    return write_access_database_with_defaults(
+        tables,
+        template_path,
+        output_path,
+        dbskey=DEFAULT_DBSKEY,
+        date_parser=parse_date,
     )
-
-
-def q(identifier: str) -> str:
-    return "[" + identifier.replace("]", "]]") + "]"
-
-
-def ensure_access_columns(cursor: Any, table_name: str, columns: list[str], warnings: list[str]) -> list[str]:
-    existing = {column.upper() for column in columns}
-    added = False
-    for spec in ACCESS_SCHEMA_EXTENSIONS.get(table_name.upper(), []):
-        column_name = spec["name"]
-        if column_name.upper() in existing:
-            continue
-        try:
-            cursor.execute(f"ALTER TABLE {q(table_name)} ADD COLUMN {q(column_name)} {spec['accdb_type']}")
-        except Exception as exc:
-            warnings.append(f"Could not add Access column {table_name}.{column_name}: {exc}")
-            continue
-        added = True
-    if not added:
-        return columns
-    try:
-        return access_columns(cursor, table_name)
-    except Exception as exc:
-        warnings.append(f"Could not re-read Access columns for {table_name} after schema extension: {exc}")
-        return columns
-
-
-def resolve_access_template_path(template_path: Path | None = None) -> Path:
-    if template_path is not None:
-        return template_path
-    env_path = os.environ.get("ARIES_TEMPLATE_ACCDB_PATH")
-    if env_path:
-        return Path(env_path)
-    raise FileNotFoundError(
-        "Aries Access export requires an external template .accdb. "
-        "Pass --template, pass template_accdb_path to the MCP tool, or set ARIES_TEMPLATE_ACCDB_PATH. "
-        "The Cowork plugin does not bundle Aries_Template.accdb because raw database templates can trip "
-        "Cowork's compression-ratio guard."
-    )
-
-
-def coerce_access_value(value: Any, schema: dict[str, Any]) -> Any:
-    if value is None or value == "":
-        return None
-
-    data_type = int(schema.get("data_type", 0))
-    type_name = str(schema.get("type_name", "")).upper()
-
-    if data_type in {91, 92, 93} or "DATE" in type_name or "TIME" in type_name:
-        parsed = parse_date(value)
-        return datetime.combine(parsed, datetime.min.time()) if parsed else None
-
-    if data_type in {-6, 2, 3, 4, 5} or type_name in {"BYTE", "SHORT", "INTEGER", "LONG"}:
-        return to_int(value)
-
-    if data_type in {6, 7, 8} or type_name in {"SINGLE", "DOUBLE", "DECIMAL", "NUMERIC", "CURRENCY"}:
-        return to_float(value)
-
-    text = clean_text(value)
-    column_size = int(schema.get("column_size", 0))
-    if column_size > 0 and column_size < 100000 and len(text) > column_size:
-        return text[:column_size]
-    return text
-
-
-def access_row_value(row: dict[str, Any], table_name: str, column: str) -> Any:
-    value = row_get(row, column, default=None)
-    if value not in {None, ""}:
-        return value
-    for alias in ACCESS_COLUMN_ALIASES.get(table_name.upper(), {}).get(column.upper(), ()):
-        value = row_get(row, alias, default=None)
-        if value not in {None, ""}:
-            return value
-    return value
 
 
 def write_access_database(tables: dict[str, list[dict[str, Any]]], template_path: Path, output_path: Path) -> list[str]:
-    warnings: list[str] = []
-    try:
-        import pyodbc  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError("pyodbc is required for .accdb export. CSV export does not require pyodbc.") from exc
-
-    if not template_path.exists():
-        raise FileNotFoundError(f"Missing Aries Access template: {template_path}")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(template_path, output_path)
-
-    conn_str = f"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};Dbq={output_path};Pooling=false"
-    with pyodbc.connect(conn_str, autocommit=False) as conn:
-        conn.setdecoding(pyodbc.SQL_CHAR, encoding="latin-1")
-        conn.setdecoding(pyodbc.SQL_WCHAR, encoding="latin-1")
-        conn.setdecoding(pyodbc.SQL_WMETADATA, encoding="utf-16-le")
-        conn.setencoding(encoding="utf-8")
-        cursor = conn.cursor()
-        available_tables = access_table_names(cursor)
-        for table_name in EXPORT_TABLE_ORDER:
-            if table_name.upper() not in available_tables:
-                warnings.append(f"Access table {table_name} not found in template; skipped.")
-                continue
-            rows = tables.get(table_name, [])
-            columns = access_columns(cursor, table_name)
-            columns = ensure_access_columns(cursor, table_name, columns, warnings)
-            schema_by_upper = access_column_schema(cursor, table_name)
-            columns_by_upper = {column.upper(): column for column in columns}
-            try:
-                cursor.execute(f"DELETE FROM {q(table_name)}")
-            except Exception as exc:
-                warnings.append(f"Could not clear {table_name}: {exc}")
-                continue
-            if not rows:
-                continue
-            row_keys = {key for row in rows for key in row.keys()}
-            row_keys_upper = {key.upper() for key in row_keys}
-            alias_targets = {
-                target
-                for target, aliases in ACCESS_COLUMN_ALIASES.get(table_name.upper(), {}).items()
-                if target.upper() in columns_by_upper
-                and any(alias.upper() in row_keys_upper for alias in aliases)
-            }
-            insert_columns = [
-                columns_by_upper[column.upper()]
-                for column in sorted(row_keys | alias_targets, key=str.upper)
-                if column.upper() in columns_by_upper
-            ]
-            if not insert_columns:
-                sorted_row_keys = sorted(row_keys, key=str.upper)
-                warnings.append(
-                    f"No matching Access columns for {table_name}; rows skipped. "
-                    f"access_cols={columns} rowkeys={sorted_row_keys}"
-                )
-                continue
-            placeholders = ", ".join("?" for _ in insert_columns)
-            sql = f"INSERT INTO {q(table_name)} ({', '.join(q(column) for column in insert_columns)}) VALUES ({placeholders})"
-            values = [
-                [
-                    coerce_access_value(access_row_value(row, table_name, column), schema_by_upper[column.upper()])
-                    for column in insert_columns
-                ]
-                for row in rows
-            ]
-            cursor.fast_executemany = False
-            cursor.executemany(sql, values)
-        append_showids_column(cursor, DEFAULT_DBSKEY, "SRC_DB", warnings)
-        conn.commit()
+    summary = write_access_database_summary(tables, template_path, output_path)
+    warnings = list(summary.warnings)
+    for table in summary.tables.values():
+        warnings.extend(table.warnings)
     return warnings
 
 
@@ -988,7 +819,16 @@ def export_aries(
     if accdb_path is not None:
         template_path = resolve_access_template_path(template_path)
         final_accdb_path = accdb_path.resolve()
-        warnings.extend(write_access_database(tables, template_path.resolve(), final_accdb_path))
+        access_tables, access_economic = prepare_access_tables(tables)
+        if access_economic["omittedReviewEconomicRows"]:
+            warnings.append(access_economic["message"])
+        access_summary = write_access_database_summary(access_tables, template_path.resolve(), final_accdb_path)
+        warnings.extend(access_summary.warnings)
+        for table in access_summary.tables.values():
+            warnings.extend(table.warnings)
+        diagnostics = diagnostics or {}
+        diagnostics["accessEconomic"] = access_economic
+        diagnostics["accessWriter"] = access_summary.to_dict()
 
     table_counts = {table: len(rows) for table, rows in tables.items()}
     result = AriesExportResult(

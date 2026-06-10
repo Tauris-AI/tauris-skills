@@ -1,10 +1,14 @@
 # PHDWin To Aries Reference Pack
 
-This folder contains conversion reference material copied from `Tauris.PhdWin` so the Cowork MCP package has the context needed for PHDWin-to-Aries review.
+This folder contains cleared conversion reference material for PHDWin-to-Aries review.
+
+The package must remain standalone and externally shareable. Use `Tauris.PhdWin`
+as an external behavioral reference or roadmap only. Do not copy, vendor, or
+commit `.cs` implementation files into this repo.
 
 ## Included
 
-### Tauris-authored Markdown
+### Cleared Markdown References
 
 - `aries-conv-docs/PHDWIN_DATA_MAP.md`
 - `aries-conv-docs/ARIES_ACCESS_TABLE_CONTRACTS.md`
@@ -15,6 +19,7 @@ This folder contains conversion reference material copied from `Tauris.PhdWin` s
 - `aries-conv-docs/ARIES_EXPORT_RUNNING_LIST.md`
 - `aries-conv-docs/ARIES_MIGRATION_ROADMAP.md`
 - `aries-conv-docs/AC_ECONOMIC_DEEP_FIDELITY_PLAN.md`
+- `aries-conv-docs/AC_ECONOMIC_STANDALONE_ROADMAP.md`
 - `aries-conv-docs/LLM_DATABASE_DIAGNOSTIC_PROFILE.md`
 - `aries-conv-docs/ARIES_CONVERSION_NEXT_STEPS.md`
 
@@ -34,4 +39,6 @@ Use the PHDWin output definitions spreadsheet as checked-in reference material f
 
 The package intentionally excludes raw/sample databases, generated SQLite templates, Access templates, vendor help files, vendor manuals, and third-party reference documents unless they are explicitly cleared for redistribution and safe for Cowork plugin packaging. The PHDWin output definitions spreadsheet is the only bundled binary reference artifact intended for this public workflow.
 
-Do not commit client PHDWin files, generated SQLite exports, extracted source folders, generated reports, or C# implementation snapshots. The Cowork MCP package runtime is Python.
+Do not commit client PHDWin files, generated SQLite exports, extracted source
+folders, generated reports, or C# implementation snapshots. The Cowork MCP
+package runtime is Python.
