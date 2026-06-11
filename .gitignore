@@ -24,6 +24,11 @@ e2e-local/**
 !e2e-local/*/README.md
 !e2e-local/run_*.py
 !e2e-local/*/run_*.py
+# Committed E2E fixtures (forecasting CSVs anonymized; .phz/.accdb are demo data)
+# NB: .accdb is re-included further down, after the global *.accdb ignore
+!e2e-local/forecasting/*.csv
+!e2e-local/phdwin-v2/Phdwinv2-db/
+!e2e-local/phdwin-v2/Phdwinv2-db/*.phz
 
 # Local helper scripts
 scripts/*
@@ -40,6 +45,8 @@ phdwin_cli_test.log
 *.sqlite
 *.sqlite3
 *.db
+# Re-include committed E2E Aries .accdb fixtures (override global *.accdb above)
+!e2e-local/aries/*.accdb
 exports/
 data/
 dist/
