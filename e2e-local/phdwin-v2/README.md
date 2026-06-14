@@ -2,7 +2,8 @@
 
 Use this folder for local end-to-end PHDWin v2 inspection and PHDWin-to-Aries review tests.
 
-Everything in this folder is ignored except this README. Good candidates:
+Everything in this folder is git-ignored except this README and the committed
+fixtures listed below. Good local-only candidates:
 
 - local `.phz`, `.phd`, `.mod`, `.mdb`, or `.accdb` source files
 - extracted PHDWin folders
@@ -10,6 +11,15 @@ Everything in this folder is ignored except this README. Good candidates:
 - Aries-named CSV review exports
 - optional Aries Access review exports
 - Cowork transcripts, logs, screenshots, and readiness memos
+
+## Committed fixtures
+
+- `Phdwinv2-db/Demo.phz` — demo PHDWin v2 archive (renamed to an agnostic
+  source name; contains `Demo.PHD` + `Demo.mod`). It is the `.phz` source for
+  the `.phz -> extract -> review SQLite -> ARIES` pipeline in
+  `run_phdwin_e2e.py`, which extracts it to `output/Demo/`.
+
+Generated artifacts (`output/`, `__pycache__/`) remain git-ignored.
 
 Recommended local layout:
 
@@ -32,7 +42,7 @@ Suggested smoke flow:
 8. Validate the generated `.accdb` through the Aries MCP module:
 
 ```powershell
-py -3.12-32 scripts\validate_aries_accdb.py e2e-local\phdwin-v2\Phdwinv2-db\aries-accdb\puckett_aries_export.accdb
+py -3.12-32 scripts\validate_aries_accdb.py e2e-local\phdwin-v2\Phdwinv2-db\aries-accdb\demo_aries_export.accdb
 ```
 
 9. Confirm native PHDWin files were not modified.

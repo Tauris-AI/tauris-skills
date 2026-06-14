@@ -10,7 +10,9 @@ Cowork installs four plugins from that marketplace:
 
 ## Install
 
-Add the marketplace from GitHub:
+In the Cowork UI, open the plugin **Directory** -> **Plugins** -> **Personal** tab -> **+** (**Add marketplace**) -> **Add from a repository**, then enter the GitHub `owner/repo` or git URL (`https://github.com/Tauris-AI/tauris-skills`) and confirm. Only add marketplace sources you trust. (Screenshots of this flow are embedded in `Tauris_Skills_AI_Platform_Install_Guide.md`.)
+
+Or add the marketplace from GitHub with a slash command:
 
 ```text
 /plugin marketplace add Tauris-AI/tauris-skills

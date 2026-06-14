@@ -11,8 +11,8 @@ Full pipeline stages (each stage skips gracefully when dependencies are missing)
   5. Write .accdb Access export (requires pyodbc + Access ODBC driver + template)
 
 Data sources (tried in order):
-  1. Extract Phdwinv2-db/Puckett Field.phz → ODBC export → review SQLite
-  2. Phdwinv2-db/review/puckett_review.sqlite  — pre-built real Puckett Field data
+  1. Extract Phdwinv2-db/Demo.phz → ODBC export → review SQLite
+  2. Phdwinv2-db/review/demo_review.sqlite  — pre-built real Demo data
   3. Synthetic review SQLite with 3 wells (fallback when no driver available)
 """
 from __future__ import annotations
@@ -36,8 +36,8 @@ SCRIPTS = REPO_ROOT / "areas" / "phdwin-v2" / "mcp-servers" / "PHDWinv2_MCP" / "
 sys.path.insert(0, str(SCRIPTS))
 sys.path.insert(0, str(REPO_ROOT / "areas" / "aries" / "lib"))
 
-PUCKETT_PHZ = AREA_DIR / "Phdwinv2-db" / "Puckett Field.phz"
-PUCKETT_REVIEW = AREA_DIR / "Phdwinv2-db" / "review" / "puckett_review.sqlite"
+DEMO_PHZ = AREA_DIR / "Phdwinv2-db" / "Demo.phz"
+DEMO_REVIEW = AREA_DIR / "Phdwinv2-db" / "review" / "demo_review.sqlite"
 
 # Well-known locations for Aries_Template.accdb (checked in order).
 # Drop a cleared template into any of these paths to enable .accdb export.
@@ -53,8 +53,8 @@ def clean_outputs() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     # Also clean legacy output locations
     for legacy in [
-        AREA_DIR / "Phdwinv2-db" / "review" / "puckett_aries.sqlite",
-        AREA_DIR / "Phdwinv2-db" / "review" / "puckett_e2e_summary.json",
+        AREA_DIR / "Phdwinv2-db" / "review" / "demo_aries.sqlite",
+        AREA_DIR / "Phdwinv2-db" / "review" / "demo_e2e_summary.json",
         AREA_DIR / "Phdwinv2-db" / "aries-csv",
     ]:
         if legacy.is_dir():
@@ -70,7 +70,7 @@ def clean_outputs() -> None:
 
 def extract_phz(phz_path: Path, output_dir: Path) -> dict[str, Any]:
     """Extract .phz archive to a dataset folder. Pure Python, no ODBC needed."""
-    target = output_dir / "Puckett Field"
+    target = output_dir / "Demo"
     target.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(phz_path, "r") as archive:
         archive.extractall(target)
@@ -192,9 +192,9 @@ def resolve_source() -> tuple[Path, dict[str, Any]]:
     metadata: dict[str, Any] = {"phzExtracted": False, "odbcExport": None, "sourceType": "unknown"}
 
     # Stage 1: Extract .phz if present
-    if PUCKETT_PHZ.exists():
-        print(f"  Found .phz: {PUCKETT_PHZ}")
-        extract_result = extract_phz(PUCKETT_PHZ, OUTPUT_DIR)
+    if DEMO_PHZ.exists():
+        print(f"  Found .phz: {DEMO_PHZ}")
+        extract_result = extract_phz(DEMO_PHZ, OUTPUT_DIR)
         metadata["phzExtracted"] = True
         metadata["phzExtract"] = extract_result
         print(f"  Extracted to {extract_result['extractedTo']}: {len(extract_result['phdFiles'])} .phd, {len(extract_result['modFiles'])} .mod")
@@ -202,7 +202,7 @@ def resolve_source() -> tuple[Path, dict[str, Any]]:
         # Stage 2: Try ODBC export from extracted native files
         if extract_result["validDataset"]:
             dataset_dir = Path(extract_result["extractedTo"])
-            odbc_sqlite = OUTPUT_DIR / "puckett_review.sqlite"
+            odbc_sqlite = OUTPUT_DIR / "demo_review.sqlite"
             odbc_result = try_odbc_export(dataset_dir, odbc_sqlite)
             metadata["odbcExport"] = odbc_result
             if odbc_result["status"] == "ok":
@@ -212,13 +212,13 @@ def resolve_source() -> tuple[Path, dict[str, Any]]:
             else:
                 print(f"  ODBC export {odbc_result['status']}: {odbc_result.get('reason', '')}")
     else:
-        print(f"  No .phz found at {PUCKETT_PHZ}")
+        print(f"  No .phz found at {DEMO_PHZ}")
 
     # Stage 2b: Use pre-built review SQLite if available
-    if PUCKETT_REVIEW.exists():
-        print(f"  Using pre-built review: {PUCKETT_REVIEW}")
+    if DEMO_REVIEW.exists():
+        print(f"  Using pre-built review: {DEMO_REVIEW}")
         metadata["sourceType"] = "pre_built_review"
-        return PUCKETT_REVIEW, metadata
+        return DEMO_REVIEW, metadata
 
     # Stage 3: Synthetic fallback
     synthetic = OUTPUT_DIR / "synthetic_review.sqlite"
@@ -288,7 +288,7 @@ def run_pipeline(source_sqlite: Path) -> dict[str, Any]:
 
     # Stage 5: Try .accdb export
     accdb_result: dict[str, Any] = {"status": "skipped", "reason": "not attempted"}
-    accdb_path = OUTPUT_DIR / "puckett_aries_export.accdb"
+    accdb_path = OUTPUT_DIR / "demo_aries_export.accdb"
     template_path = find_aries_template()
     if template_path is None:
         searched = [str(p) for p in TEMPLATE_SEARCH_PATHS]
